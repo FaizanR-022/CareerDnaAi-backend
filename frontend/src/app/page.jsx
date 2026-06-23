@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 
 export default function Home() {
   // Simple scroll effect for navbar
-
 
   return (
     <>
@@ -53,9 +53,11 @@ export default function Home() {
 
           {/* Right: Actions */}
           <div className="flex-1 flex justify-end">
-            <button className="px-6 py-2 rounded-full border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors duration-200 bg-transparent">
-              Sign In
-            </button>
+            <Link href="/login">
+              <button className="px-6 py-2 rounded-full border border-primary text-primary text-sm font-semibold hover:bg-primary/5 transition-colors duration-200 bg-transparent">
+                Sign In
+              </button>
+            </Link>
           </div>
 
         </div>
@@ -79,12 +81,15 @@ export default function Home() {
                 perfectly matches your skills, personality, and ambitions.
               </p>
               <div className="flex flex-wrap items-center gap-4 mt-2">
-                <button className="px-6 py-3 rounded-xl bg-primary text-on-primary font-label-md text-label-md shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2">
-                  Discover Your Path
-                  <span className="material-symbols-outlined text-sm">
-                    arrow_forward
-                  </span>
-                </button>
+                {/* Linked Main Button to Onboarding */}
+                <Link href="/onboarding">
+                  <button className="px-6 py-3 rounded-xl bg-primary text-on-primary font-label-md text-label-md shadow-md hover:shadow-lg transition-all duration-300 flex items-center gap-2">
+                    Discover Your Path
+                    <span className="material-symbols-outlined text-sm">
+                      arrow_forward
+                    </span>
+                  </button>
+                </Link>
                 <button className="px-6 py-3 rounded-xl border border-outline-variant text-on-surface font-label-md text-label-md hover:bg-surface-variant transition-all duration-300">
                   Watch Demo
                 </button>
@@ -131,9 +136,9 @@ export default function Home() {
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
                 Lead vision, strategy and execution. Bridge users, business and engineering to ship products that matter.
               </p>
-              <a className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="/simulation/pm">
+              <Link className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="/simulation/pm">
                 View Role <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </a>
+              </Link>
             </div>
 
             {/* SQA */}
@@ -145,9 +150,9 @@ export default function Home() {
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
                 Guard product quality. Design test strategies, automate flows and catch issues before users do.
               </p>
-              <a className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
+              <Link className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="/simulation/sqa">
                 View Role <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </a>
+              </Link>
             </div>
 
             {/* Data Analyst */}
@@ -159,9 +164,9 @@ export default function Home() {
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
                 Turn raw data into clear stories. Drive decisions with dashboards, metrics and deep insight.
               </p>
-              <a className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
+              <Link className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="/simulation/da">
                 View Role <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </a>
+              </Link>
             </div>
 
             {/* Frontend Engineer - Centered Row 2 */}
@@ -173,9 +178,9 @@ export default function Home() {
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
                 Craft fast, beautiful interfaces. Translate design into responsive, accessible web experiences.
               </p>
-              <a className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
+              <Link className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
                 View Role <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </a>
+              </Link>
             </div>
 
             {/* Backend Engineer - Centered Row 2 */}
@@ -187,9 +192,9 @@ export default function Home() {
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
                 Build the engine behind the product. APIs, databases and systems that scale reliably.
               </p>
-              <a className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
+              <Link className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
                 View Role <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </a>
+              </Link>
             </div>
           </div>
         </section>
