@@ -27,7 +27,7 @@ export default function PmSimulationPage() {
       <CommunicationsSidebar difficulty={difficulty} />
 
       {/* 3. Main Content Workspace */}
-      <main className="flex-1 ml-[340px] md:ml-[360px] flex flex-col h-full bg-surface-container-lowest relative pt-20">
+      <main className="flex-1 ml-[340px] md:ml-[360px] mt-20 flex flex-col h-[calc(100vh-80px)] bg-surface-container-lowest relative">
         {/* Workspace Sub-navigation Tabs */}
         <div className="px-gutter pt-4 border-b border-outline-variant bg-surface flex justify-between items-end relative z-10 shrink-0">
           <div className="flex gap-8">

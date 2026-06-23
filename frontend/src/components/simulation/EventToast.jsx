@@ -23,7 +23,7 @@ export default function EventToast({
   };
 
   return (
-    <div className="absolute bottom-8 right-8 w-[420px] bg-surface rounded-xl shadow-xl border border-outline-variant/20 border-l-4 border-l-tertiary-container overflow-hidden z-50 transition-all duration-300">
+    <div className="fixed bottom-8 right-8 w-[380px] md:w-[420px] bg-surface rounded-xl shadow-2xl border border-outline-variant/20 border-l-4 border-l-tertiary-container overflow-hidden z-[100] transition-all duration-300">
       <div className="p-6 flex flex-col gap-4">
         {/* Header */}
         <div className="flex items-start justify-between">

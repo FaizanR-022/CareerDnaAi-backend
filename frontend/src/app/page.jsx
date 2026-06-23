@@ -131,7 +131,7 @@ export default function Home() {
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
                 Lead vision, strategy and execution. Bridge users, business and engineering to ship products that matter.
               </p>
-              <a className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
+              <a className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="/simulation/pm">
                 View Role <span className="material-symbols-outlined text-sm">arrow_forward</span>
               </a>
             </div>

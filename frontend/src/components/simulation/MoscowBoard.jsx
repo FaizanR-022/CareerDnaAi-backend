@@ -129,7 +129,7 @@ export default function MoscowBoard({ difficulty }) {
         Drag cards between columns
       </div>
 
-      <div className="flex gap-6 overflow-x-auto pb-4 pt-8 kanban-scroll flex-1 h-full">
+      <div className="flex gap-6 overflow-x-auto pb-4 pt-8 kanban-scroll flex-1 h-full w-full">
         {getColumns().map((col) => {
           const colCards = getColCards(col.id);
 
@@ -138,7 +138,7 @@ export default function MoscowBoard({ difficulty }) {
               key={col.id}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.id)}
-              className={`w-80 shrink-0 flex flex-col gap-4 transition-all duration-300 ${col.opacityClass}`}
+              className={`flex-1 min-w-[220px] lg:min-w-[240px] flex flex-col gap-4 transition-all duration-300 ${col.opacityClass}`}
             >
               {/* Column Header */}
               <div className="flex items-center justify-between px-2">
