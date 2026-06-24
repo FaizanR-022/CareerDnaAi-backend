@@ -178,7 +178,7 @@ export default function Home() {
               <p className="font-body-sm text-body-sm text-on-surface-variant mb-6">
                 Craft fast, beautiful interfaces. Translate design into responsive, accessible web experiences.
               </p>
-              <Link className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="#">
+              <Link className="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary-container hover:text-tertiary transition-colors" href="/simulation/fe">
                 View Role <span className="material-symbols-outlined text-sm">arrow_forward</span>
               </Link>
             </div>

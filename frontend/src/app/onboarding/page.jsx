@@ -22,7 +22,7 @@ export default function OnboardingPage() {
   const handleStartSimulation = () => {
     if (!selectedPath) return;
 
-    if (selectedPath === "pm" || selectedPath === "da" || selectedPath === "sqa") {
+    if (selectedPath === "pm" || selectedPath === "da" || selectedPath === "sqa" || selectedPath === "fe") {
       router.push(`/simulation/${selectedPath}`);
     } else {
       alert(`The simulation for ${selectedPath.toUpperCase()} is queued. Redirecting to Product Manager baseline sandbox.`);
