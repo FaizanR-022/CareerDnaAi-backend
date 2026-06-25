@@ -155,6 +155,19 @@ class ActionRequest(BaseModel):
     user_action: str
 
 
+class OnboardingRequest(BaseModel):
+    university: str = ""
+    degree: str = ""
+    graduation_year: str = ""
+    career_interests: list[str] = []
+    personality_results: dict = {}
+    self_rated_pm: int = 3
+    self_rated_sqa: int = 3
+    self_rated_data: int = 3
+    self_rated_frontend: int = 3
+    self_rated_backend: int = 3
+
+
 # ─── ENDPOINTS ───────────────────────────────────────────────────────────────
 
 @app.get("/")
@@ -313,3 +326,82 @@ def get_opening_messages(session_id: str, current_user: dict = Depends(get_curre
         "sprint_board": scene_config.get("sprint_board") if diff_mods.get("sprint_capacity_visible") else None,
         "hint": diff_mods.get("hint_text") if diff_mods.get("hint_available") else None,
     }
+
+
+@app.post("/session/{session_id}/pause")
+def pause_session(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Pauses the session for Save & Exit."""
+    state = load_session(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if state["user_id"] != current_user["user_id"] and current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Not your session")
+    
+    state["session_status"] = "paused"
+    save_session(session_id, state)
+    return {"status": "paused", "session_id": session_id}
+
+
+@app.post("/session/{session_id}/complete")
+def complete_session(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Manually completes the session."""
+    state = load_session(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if state["user_id"] != current_user["user_id"] and current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Not your session")
+    
+    state["session_status"] = "simulation_complete"
+    save_session(session_id, state)
+    
+    # Ideally trigger report agent here or mark for evaluation
+    return {"status": "simulation_complete", "session_id": session_id}
+
+
+@app.get("/sessions/incomplete")
+def get_incomplete_sessions(current_user: dict = Depends(get_current_user)):
+    """Returns all active or paused sessions for the user."""
+    if not supabase:
+        # Memory mode mock
+        res = []
+        for sid, state in _memory_sessions.items():
+            if state["user_id"] == current_user["user_id"] and state["session_status"] in ["active", "paused"]:
+                res.append({"session_id": sid, "domain": state["domain"], "status": state["session_status"]})
+        return res
+
+    try:
+        result = supabase.table("sessions").select("id, domain, difficulty, status, current_scene_id, started_at, last_active_at").eq("user_id", current_user["user_id"]).in_("status", ["active", "paused"]).execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/user/onboarding")
+def save_onboarding_data(req: OnboardingRequest, current_user: dict = Depends(get_current_user)):
+    """Saves user onboarding data (personality, knowledge assessment)."""
+    if not supabase:
+        return {"status": "success (mocked)", "data": req.model_dump()}
+
+    try:
+        # Update users table with basic info
+        supabase.table("users").update({
+            "university": req.university
+        }).eq("id", current_user["user_id"]).execute()
+
+        # Upsert user_profiles
+        profile_data = {
+            "user_id": current_user["user_id"],
+            "personality_results": req.personality_results,
+            "interest_results": req.career_interests,
+            "self_rated_pm": req.self_rated_pm,
+            "self_rated_sqa": req.self_rated_sqa,
+            "self_rated_data": req.self_rated_data,
+            "self_rated_frontend": req.self_rated_frontend,
+            "self_rated_backend": req.self_rated_backend,
+        }
+        supabase.table("user_profiles").upsert(profile_data).execute()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
