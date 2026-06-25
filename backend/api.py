@@ -27,7 +27,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 
 supabase: Optional[Client] = None
-if SUPABASE_URL and SUPABASE_KEY:
+if SUPABASE_URL.startswith("https://") and SUPABASE_KEY and not SUPABASE_KEY.startswith("your_"):
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     print("[API] Supabase connected ✓")
 else:
@@ -97,13 +97,14 @@ def save_session(session_id: str, state: SimulationState):
                 "status": state["session_status"],
                 "current_scene_id": state["current_scene_id"],
                 "scenes_completed": state["scenes_completed"],
-                "scene_state": json.dumps({
+                # scene_state is JSONB NOT NULL — pass a plain dict, not a JSON string
+                "scene_state": {
                     "scores": state["scores"],
                     "decisions_log": state["decisions_log"],
                     "stakeholder_trust": state["stakeholder_trust"],
                     "npc_states": state["npc_states"],
                     "sprint_progress": state["sprint_progress"],
-                }),
+                },
                 "sprint_progress": state["sprint_progress"],
                 "last_active_at": "now()",
             }).execute()
@@ -121,7 +122,10 @@ def load_session(session_id: str) -> Optional[SimulationState]:
             result = supabase.table("sessions").select("*").eq("id", session_id).single().execute()
             if result.data:
                 row = result.data
-                scene_state = json.loads(row.get("scene_state", "{}"))
+                # scene_state is JSONB — Supabase returns it as a plain dict, not a string
+                scene_state = row.get("scene_state") or {}
+                if isinstance(scene_state, str):
+                    scene_state = json.loads(scene_state)
                 # Reconstruct state from DB row + scene_state blob
                 state = create_initial_state(session_id, row["user_id"], row["domain"], row["difficulty"])
                 state["current_scene_id"] = row["current_scene_id"]

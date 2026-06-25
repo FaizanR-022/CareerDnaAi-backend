@@ -33,8 +33,8 @@
       "trust": {
         "initial": 60,
         "trust_change_rules": {
-          "clear_decision_with_reasoning": +15,
-          "escalates_to_rayan_appropriately": +10,
+          "clear_decision_with_reasoning": 15,
+          "escalates_to_rayan_appropriately": 10,
           "vague_response": -10,
           "blames_sara": -15,
           "overcommits_without_checking": -20

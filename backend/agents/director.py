@@ -275,8 +275,8 @@ def npc_node(state: SimulationState) -> dict:
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.7)
 
     scene_config = state["scenario_config"]["scenes"].get(state["current_scene_id"], {})
-    # Default to sara_khan for PM domain
-    active_npc_id = "sara_khan"
+    # Resolve active NPC from scene config (falls back to sara_khan if not set)
+    active_npc_id = scene_config.get("active_npcs", ["sara_khan"])[0]
     npc_config = state["scenario_config"].get("npcs", {}).get(active_npc_id, {})
     npc_memory = state["npc_states"].get(active_npc_id, {
         "last_interaction_summary": "No prior interaction.",

@@ -37,13 +37,13 @@
     "trust_range": [0, 100],
     "sentiment_on_load": "neutral",
     "trust_change_rules": {
-      "clarification_sought": +5,
-      "data_backed_response": +10,
+      "clarification_sought": 5,
+      "data_backed_response": 10,
       "vague_response": -8,
       "direct_refusal_no_reason": -15,
       "pushed_to_next_sprint_with_reason": -5,
       "pushed_to_next_sprint_no_reason": -20,
-      "accepted_blindly": +10
+      "accepted_blindly": 10
     }
   },
 
