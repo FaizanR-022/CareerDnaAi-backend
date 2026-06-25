@@ -1,48 +1,93 @@
 """
-NOTE: THIS IS MAINLY CONCEPTUAL, WE DON'T HAVE SEPARATE AGENT FILES YET.
-EXIST: DIRECTOR AGENT, EVALUATION AGENT, NPC AGENT
-PARTIALLY EXIST: SCENARIO AGENT
-DO NOT EXIST: USER MODEL AGENT, DIFFICULTY AGENT, CAREER  FIT AGENT, REPORT AGENT
-
-MAIN ISSUES: SCENE TRANSITION DEPENDS ON ONE SPECIFIC ACTION TYPE, SCORE DIMENSIONS DONT MATCH DATABASE, PM_SCENARIO IS HARDCODED FOR NOW, NO PERSISTENCE YET, 
-
-Simulation Director — LangGraph Implementation
+Simulation Director — LangGraph Implementation v2
 Career Simulator · Folio3 Internship Project
 -----------------------------------------------
-This is the core agent loop. It is a LangGraph StateGraph that:
-  1. Reads session state
-  2. Classifies the student action
-  3. Routes to score_node, npc_node, or scene_transition_node
-  4. Updates state after every step
-  5. Returns a structured response to the frontend
-
-LLM calls (Groq) are used ONLY for:
-  - NPC dialogue generation
-  - Rubric-based decision scoring
-
-All routing, state transitions, and branching are deterministic Python.
+Changes from v1:
+  - Scenarios loaded from JSON files (backend/scenarios/{domain}/)
+  - NPC characters loaded from JSON files
+  - No hardcoded scenario config
+  - Provider abstraction supports groq + openrouter
 """
 
 from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Annotated, Any, Literal, Optional
 from typing_extensions import TypedDict
 
 from langgraph.graph import StateGraph, END
-from langgraph.graph.message import add_messages
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
+# ─── PATHS ───────────────────────────────────────────────────────────────────
+BACKEND_DIR = Path(__file__).parent.parent          # backend/
+SCENARIOS_DIR = BACKEND_DIR / "scenarios"           # backend/scenarios/
+
+
+# ─── SCENARIO + NPC LOADING ──────────────────────────────────────────────────
+
+def load_scenario(domain: str, scene_id: str) -> dict:
+    """
+    Load a scene config from backend/scenarios/{domain}/{scene_id}.json
+    Falls back to empty dict if file not found — simulation continues in degraded mode.
+    """
+    path = SCENARIOS_DIR / domain / f"{scene_id}.json"
+    if path.exists():
+        with open(path, "r") as f:
+            return json.load(f)
+    print(f"[Director] WARNING: scenario file not found: {path}")
+    return {}
+
+
+def load_npc(domain: str, npc_id: str) -> dict:
+    """
+    Load NPC config from backend/scenarios/{domain}/{npc_id}.json
+    """
+    path = SCENARIOS_DIR / domain / f"{npc_id}.json"
+    if path.exists():
+        with open(path, "r") as f:
+            return json.load(f)
+    print(f"[Director] WARNING: NPC file not found: {path}")
+    return {}
+
+
+def load_full_scenario_config(domain: str) -> dict:
+    """
+    Load all scenes for a domain into a single config dict.
+    Returns: { "domain": str, "scenes": { scene_id: scene_config }, "npcs": { npc_id: npc_config } }
+    """
+    domain_path = SCENARIOS_DIR / domain
+    config = {"domain": domain, "scenes": {}, "npcs": {}}
+
+    if not domain_path.exists():
+        print(f"[Director] WARNING: No scenario directory for domain: {domain}")
+        return config
+
+    for file in domain_path.glob("scene_*.json"):
+        scene = json.load(open(file))
+        config["scenes"][scene["scene_id"]] = scene
+
+    for file in domain_path.glob("*.json"):
+        if not file.name.startswith("scene_"):
+            npc = json.load(open(file))
+            if "npc_id" in npc:
+                config["npcs"][npc["npc_id"]] = npc
+
+    # Attach difficulty_thresholds from first scene for easy access
+    first_scene = next(iter(config["scenes"].values()), {})
+    config["difficulty_thresholds"] = first_scene.get("score_thresholds", {"stretch": 75, "support": 40})
+
+    return config
+
+
 # ─── LLM SETUP ───────────────────────────────────────────────────────────────
-# Provider abstraction: swap base_url/api_key to switch from Groq to OpenRouter
-# or any OpenAI-compatible provider without touching any other code.
 
 def get_llm(model: str = "llama-3.3-70b-versatile", temperature: float = 0.3):
     """
-    Provider abstraction layer.
-    Change PROVIDER env var to switch between groq / openrouter / openai.
+    Provider abstraction. Set LLM_PROVIDER env var to switch.
+    Supported: groq, openrouter
     """
     provider = os.getenv("LLM_PROVIDER", "groq")
 
@@ -53,7 +98,6 @@ def get_llm(model: str = "llama-3.3-70b-versatile", temperature: float = 0.3):
             api_key=os.getenv("GROQ_API_KEY", ""),
         )
     elif provider == "openrouter":
-        # OpenRouter is OpenAI-compatible — just swap the base URL
         from langchain_openai import ChatOpenAI
         return ChatOpenAI(
             model=model,
@@ -62,136 +106,80 @@ def get_llm(model: str = "llama-3.3-70b-versatile", temperature: float = 0.3):
             openai_api_base="https://openrouter.ai/api/v1",
         )
     else:
-        raise ValueError(f"Unknown provider: {provider}. Use 'groq' or 'openrouter'.")
+        raise ValueError(f"Unknown LLM_PROVIDER: {provider}. Use 'groq' or 'openrouter'.")
 
 
-# ─── STATE DEFINITION ────────────────────────────────────────────────────────
-# This is the canonical state object. LangGraph persists this automatically
-# between nodes. Nothing modifies this directly — it flows through the graph
-# and each node returns ONLY the fields it changed (partial updates).
+# ─── STATE ───────────────────────────────────────────────────────────────────
 
 class SimulationState(TypedDict):
-    # ── Session identity ──
+    # Session identity
     session_id: str
     user_id: str
-    domain: str                          # "pm" | "sqa" | "data_analyst" | "frontend" | "backend"
-    difficulty: str                      # "easy" | "medium" | "hard"
+    domain: str
+    difficulty: str
 
-    # ── Scene tracking ──
+    # Scene tracking
     current_scene_id: str
     scenes_completed: list[str]
-    session_status: str                  # "active" | "scene_complete" | "simulation_complete"
+    session_status: str
 
-    # ── Simulation progress ──
-    sprint_progress: int                 # 0–100
-    time_remaining: Optional[int]        # seconds, None if no timer
+    # Simulation meters
+    sprint_progress: int
+    time_remaining: Optional[int]
 
-    # ── Stakeholder trust ──
-    # e.g. {"sara_khan": 72, "eng_lead": 45}
+    # Stakeholder trust  e.g. {"sara_khan": 72}
     stakeholder_trust: dict[str, int]
 
-    # ── Scoring (5 shared dimensions across all domains) ──
-    scores: dict[str, float]             # {"analytical_reasoning": 0.0, ...}
-    decisions_log: list[dict]            # full audit trail of every branch point
+    # 5-dimension scores
+    scores: dict[str, float]
+    decisions_log: list[dict]
 
-    # ── NPC state (compressed memory per NPC, not raw chat history) ──
+    # NPC compressed memory
     npc_states: dict[str, dict]
 
-    # ── Current action being processed ──
+    # Current action
     user_action: str
-    action_type: str                     # set by classify_node
+    action_type: str
 
-    # ── Output assembled by nodes, returned to frontend ──
+    # Response fields
     npc_response: Optional[str]
     score_update: Optional[dict]
     next_scene_id: Optional[str]
     ui_events: list[dict]
 
-    # ── Scenario config (loaded at session start, read-only during sim) ──
-    scenario_config: dict                # authored JSON for this domain/scene
-    user_profile: dict                   # lightweight snapshot, never updated mid-sim
+    # Scenario config (loaded at session start, read-only)
+    scenario_config: dict
+    user_profile: dict
 
 
-# ─── SCENARIO CONFIGS (mock data — in production, loaded from Postgres) ──────
-
-PM_SCENARIO = {
-    "domain": "pm",
-    "scenes": {
-        "scene_1": {
-            "title": "Ambiguous Feature Request",
-            "context": "Sara Khan (Head of Marketing) has sent you a voice memo requesting a new referral feature. Your sprint is at full capacity with 6 tickets.",
-            "sprint_capacity": 6,
-            "sprint_used": 6,
-            "branch_points": {
-                "bp_1": {
-                    "rubric_id": "pm_clarification_rubric",
-                    "dimensions": ["ambiguity_tolerance", "communication_clarity", "stakeholder_management"],
-                    "good_signals": ["asks clarifying question", "checks sprint capacity", "proposes alternatives"],
-                    "bad_signals": ["immediately agrees without checking capacity", "ignores the request entirely"],
-                }
-            },
-            "npcs": {
-                "sara_khan": {
-                    "name": "Sara Khan",
-                    "role": "Head of Marketing",
-                    "personality": "Enthusiastic, slightly impatient, responds well to clear explanations. Doesn't understand engineering constraints deeply.",
-                    "goal": "Get her referral feature in this sprint.",
-                    "knowledge_scope": "She knows marketing strategy but not sprint capacity or technical complexity.",
-                }
-            },
-            "next_scenes": {
-                "default": "scene_2",
-                "stretch": "scene_2_stretch",
-                "support": "scene_2_support",
-            },
-        },
-        "scene_2": {
-            "title": "Sprint Trade-off Decision",
-            "context": "You now have to decide what to cut from the sprint to accommodate Sara's request, or push back to next sprint.",
-        },
-    },
-    "difficulty_thresholds": {
-        "stretch": 75,   # score above this → stretch variant of next scene
-        "support": 40,   # score below this → support variant
-    },
-}
-
-INITIAL_NPC_MEMORY = {
-    "sara_khan": {
-        "last_interaction_summary": "No interaction yet.",
-        "relationship_score": 50,
-        "current_sentiment": "neutral",
-        "key_events_memory": [],
-    }
-}
-
-
-# ─── NODE IMPLEMENTATIONS ─────────────────────────────────────────────────────
+# ─── NODES ───────────────────────────────────────────────────────────────────
 
 def classify_node(state: SimulationState) -> dict:
-    """
-    Node 1 — Classify Action (deterministic, no LLM)
-    Reads the user action and determines what kind of event this is.
-    Sets action_type which controls routing in the conditional edges below.
-    """
+    """Deterministic routing — no LLM. Sets action_type."""
     action = state["user_action"].lower().strip()
 
-    # Simple keyword-based classification (in production: more robust parser)
-    if any(kw in action for kw in ["?", "clarify", "what do you mean", "can you explain", "more detail", "which"]):
-        action_type = "npc_message_clarification"
-    elif any(kw in action for kw in ["next sprint", "push back", "not this sprint", "defer"]):
-        action_type = "branch_decision_defer"
-    elif any(kw in action for kw in ["cut", "remove", "drop ticket", "reduce scope"]):
-        action_type = "branch_decision_cut"
-    elif any(kw in action for kw in ["yes", "add it", "let's do it", "sure", "ok", "okay"]):
-        action_type = "branch_decision_accept_blindly"
-    elif action in ["__scene_complete__"]:
+    if action == "__scene_complete__":
         action_type = "scene_complete"
+    elif any(kw in action for kw in ["?", "clarify", "what do you mean", "can you explain",
+                                      "more detail", "which", "what's the", "what is the",
+                                      "tell me more", "could you"]):
+        action_type = "npc_message_clarification"
+    elif any(kw in action for kw in ["next sprint", "push back", "not this sprint",
+                                      "defer", "push to", "move to next"]):
+        action_type = "branch_decision_defer"
+    elif any(kw in action for kw in ["cut", "remove", "drop ticket", "reduce scope",
+                                      "remove ticket", "let's cut", "we can cut"]):
+        action_type = "branch_decision_cut"
+    elif any(kw in action for kw in ["yes", "add it", "let's do it", "sure", "ok",
+                                      "okay", "sounds good", "let's add", "go ahead"]):
+        action_type = "branch_decision_accept_blindly"
+    elif any(kw in action for kw in ["escalate", "check with", "ask rayan", "loop in",
+                                      "bring in", "consult"]):
+        action_type = "branch_decision_escalate"
     else:
         action_type = "npc_message_general"
 
-    print(f"[Director] classify_node → action_type: {action_type}")
-
+    print(f"[Director] classify_node → {action_type}")
     return {
         "action_type": action_type,
         "npc_response": None,
@@ -202,60 +190,62 @@ def classify_node(state: SimulationState) -> dict:
 
 
 def score_node(state: SimulationState) -> dict:
-    """
-    Node 2 — Score Decision (LLM-as-judge, constrained output)
-    Uses Groq to evaluate the student's decision against the rubric.
-    Returns a structured score dict — NOT displayed to student mid-sim.
-    """
+    """LLM-as-judge scoring. Constrained JSON output."""
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.1)
 
     scene_config = state["scenario_config"]["scenes"].get(state["current_scene_id"], {})
-    rubric_context = scene_config.get("branch_points", {}).get("bp_1", {})
+    branch_points = scene_config.get("branch_points", {})
+    # Use first available branch point rubric
+    rubric = next(iter(branch_points.values()), {}) if branch_points else {}
+    difficulty_mod = scene_config.get("difficulty_modifiers", {}).get(state["difficulty"], {})
 
-    prompt = f"""You are a scoring judge for a career simulation. 
-Evaluate this student action against the rubric below.
-Return ONLY valid JSON matching the exact schema. No extra text.
+    prompt = f"""You are a scoring judge for a career simulation. Evaluate this student action.
+Return ONLY valid JSON. No preamble, no explanation, no markdown.
 
-STUDENT ACTION: "{state['user_action']}"
-SCENE CONTEXT: {scene_config.get('context', '')}
-RUBRIC DIMENSIONS: {rubric_context.get('dimensions', [])}
-GOOD SIGNALS: {rubric_context.get('good_signals', [])}
-BAD SIGNALS: {rubric_context.get('bad_signals', [])}
+DOMAIN: {state['domain']}
 DIFFICULTY: {state['difficulty']}
+STUDENT ACTION: "{state['user_action']}"
+ACTION TYPE: {state['action_type']}
+SCENE: {scene_config.get('title', 'Unknown')}
+SCENE CONTEXT: {scene_config.get('description', '')}
+RUBRIC DIMENSIONS: {rubric.get('dimensions', ['ambiguity_tolerance', 'communication_clarity', 'stakeholder_management'])}
+GOOD SIGNALS: {rubric.get('good_signals', [])}
+BAD SIGNALS: {rubric.get('bad_signals', [])}
 
-Return this JSON schema exactly:
+Return exactly this JSON schema:
 {{
   "overall_score": <integer 0-100>,
   "dimension_scores": {{
+    "analytical_reasoning": <integer 0-100>,
     "ambiguity_tolerance": <integer 0-100>,
     "communication_clarity": <integer 0-100>,
-    "stakeholder_management": <integer 0-100>
+    "attention_to_detail": <integer 0-100>,
+    "decisiveness": <integer 0-100>
   }},
-  "behavioural_flags": [<list of strings like "clarification_sought", "rushed", "escalated">],
-  "one_line_justification": "<single sentence, max 20 words>"
+  "behavioural_flags": [<strings from: "clarification_sought", "escalated", "rushed", "data_backed", "vague", "accepted_blindly", "stakeholder_aware">],
+  "one_line_justification": "<max 20 words>"
 }}"""
 
-    response = llm.invoke([SystemMessage(content=prompt)])
-
     try:
-        # Strip any accidental markdown fences
+        response = llm.invoke([SystemMessage(content=prompt)])
         raw = response.content.strip().replace("```json", "").replace("```", "").strip()
         score_data = json.loads(raw)
-    except json.JSONDecodeError:
-        # Fallback: apply neutral score, log the parse failure
-        print(f"[Director] score_node: JSON parse failed, applying default score")
+    except Exception as e:
+        print(f"[Director] score_node parse error: {e}")
         score_data = {
             "overall_score": 50,
-            "dimension_scores": {"ambiguity_tolerance": 50, "communication_clarity": 50, "stakeholder_management": 50},
+            "dimension_scores": {
+                "analytical_reasoning": 50, "ambiguity_tolerance": 50,
+                "communication_clarity": 50, "attention_to_detail": 50, "decisiveness": 50
+            },
             "behavioural_flags": ["parse_error"],
             "one_line_justification": "Score defaulted due to parse error.",
         }
 
-    # Merge into running scores
+    # Update running scores (rolling average)
     updated_scores = dict(state["scores"])
     for dim, val in score_data.get("dimension_scores", {}).items():
         prev = updated_scores.get(dim, 0.0)
-        # Running average (simple)
         updated_scores[dim] = round((prev + val) / 2, 1) if prev > 0 else float(val)
 
     # Append to decisions log
@@ -265,11 +255,12 @@ Return this JSON schema exactly:
         "action": state["user_action"],
         "action_type": state["action_type"],
         "score": score_data["overall_score"],
+        "dimension_scores": score_data.get("dimension_scores", {}),
         "flags": score_data.get("behavioural_flags", []),
         "justification": score_data.get("one_line_justification", ""),
     })
 
-    print(f"[Director] score_node → score: {score_data['overall_score']}, flags: {score_data.get('behavioural_flags')}")
+    print(f"[Director] score_node → {score_data['overall_score']}/100 | flags: {score_data.get('behavioural_flags')}")
 
     return {
         "scores": updated_scores,
@@ -280,231 +271,237 @@ Return this JSON schema exactly:
 
 
 def npc_node(state: SimulationState) -> dict:
-    """
-    Node 3 — NPC Response (LLM conversational, constrained)
-    Generates in-character NPC dialogue for Sara (or whichever NPC is active).
-    Output is display text ONLY — never parsed for logic.
-    Guardrail: hard_constraints injected from state ensure NPC cannot contradict facts.
-    """
+    """LLM NPC dialogue generation. Character-constrained."""
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.7)
 
     scene_config = state["scenario_config"]["scenes"].get(state["current_scene_id"], {})
-    npc_config = scene_config.get("npcs", {}).get("sara_khan", {})
-    npc_memory = state["npc_states"].get("sara_khan", INITIAL_NPC_MEMORY["sara_khan"])
+    # Default to sara_khan for PM domain
+    active_npc_id = "sara_khan"
+    npc_config = state["scenario_config"].get("npcs", {}).get(active_npc_id, {})
+    npc_memory = state["npc_states"].get(active_npc_id, {
+        "last_interaction_summary": "No prior interaction.",
+        "relationship_score": 50,
+        "current_sentiment": "neutral",
+        "key_events_memory": []
+    })
 
-    # Build hard constraints from current state — NPC cannot contradict these
+    # Sprint state from scene config
+    sprint = scene_config.get("sprint_board", {})
+    sprint_capacity = sprint.get("capacity", "unknown")
+    sprint_used = len(sprint.get("tickets", []))
+    sprint_available = sprint.get("available_points", 0)
+
+    # Hard constraints — built from live state, NPC CANNOT contradict these
     hard_constraints = f"""
-FACTS YOU MUST NOT CONTRADICT (these are ground truth from the simulation state):
-- Sprint capacity: {scene_config.get('sprint_capacity', 'unknown')} tickets maximum
-- Sprint currently used: {scene_config.get('sprint_used', 'unknown')} tickets
-- Therefore sprint has ZERO spare capacity right now
-- You do NOT know the student's internal scoring or assessment criteria
+FACTS YOU MUST NOT CONTRADICT (these are ground truth — never override them):
+- Sprint has {sprint_capacity} ticket slots maximum
+- Sprint currently has {sprint_used} tickets
+- Sprint has {sprint_available} spare capacity
+- You do NOT know the student is being assessed or scored
 - You do NOT know this is a simulation
+- You do NOT know about any scoring system
 """
 
+    personality = npc_config.get("personality", {})
     system_prompt = f"""You are {npc_config.get('name', 'Sara')}, {npc_config.get('role', 'a colleague')}.
 
-PERSONALITY: {npc_config.get('personality', '')}
+PERSONALITY: {personality.get('summary', '')}
 YOUR GOAL: {npc_config.get('goal', '')}
-YOUR KNOWLEDGE SCOPE: {npc_config.get('knowledge_scope', '')}
-
-RELATIONSHIP WITH STUDENT: Trust level {npc_memory.get('relationship_score', 50)}/100
+RELATIONSHIP TRUST: {npc_memory.get('relationship_score', 50)}/100
 CURRENT MOOD: {npc_memory.get('current_sentiment', 'neutral')}
-CONVERSATION MEMORY: {npc_memory.get('last_interaction_summary', 'No prior interaction.')}
+RECENT CONTEXT: {npc_memory.get('last_interaction_summary', 'No prior interaction.')}
+DIFFICULTY: {state['difficulty']}
 
 {hard_constraints}
 
 RULES:
 - Stay in character at all times. Never break the fourth wall.
-- Never reveal you are an AI or part of a simulation.
-- Never invent sprint capacity or technical facts beyond what is stated above.
+- Never reveal you are an AI, a character, or part of a simulation.
 - Keep response to 2-4 sentences maximum.
-- Match your mood to the relationship score and conversation history.
+- If trust is below 30, be noticeably cooler and more formal.
+- If trust is above 70, be warmer and more collaborative.
+- Match urgency to difficulty: easy=friendly, medium=professional, hard=pressured.
 """
 
-    response = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=f"The student said or did: {state['user_action']}\nRespond in character as {npc_config.get('name', 'Sara')}.")
-    ])
+    try:
+        response = llm.invoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"The PM said or did: {state['user_action']}\n\nRespond in character as {npc_config.get('name', 'Sara')}.")
+        ])
+        dialogue = response.content.strip()
+    except Exception as e:
+        print(f"[Director] npc_node LLM error: {e}")
+        dialogue = "Got it, I'll wait to hear back from you."
 
-    dialogue = response.content.strip()
-
-    # Update NPC memory (compressed — not raw history)
+    # Update NPC memory
     updated_memory = dict(npc_memory)
-    updated_memory["last_interaction_summary"] = f"Student said: '{state['user_action'][:100]}...'. Sara responded about the referral feature."
+    updated_memory["last_interaction_summary"] = f"PM said: '{state['user_action'][:80]}'. Responded about the referral feature request."
 
-    # Infer sentiment shift from action type
-    if "clarification" in state["action_type"]:
-        updated_memory["current_sentiment"] = "positive"
-        updated_memory["relationship_score"] = min(100, npc_memory.get("relationship_score", 50) + 5)
-    elif "accept_blindly" in state["action_type"]:
-        updated_memory["current_sentiment"] = "positive"
-        updated_memory["relationship_score"] = min(100, npc_memory.get("relationship_score", 50) + 10)
-    elif "defer" in state["action_type"]:
-        updated_memory["current_sentiment"] = "negative"
-        updated_memory["relationship_score"] = max(0, npc_memory.get("relationship_score", 50) - 8)
+    # Trust changes based on action type
+    trust_changes = {
+        "npc_message_clarification": 5,
+        "branch_decision_defer": -5,
+        "branch_decision_cut": 2,
+        "branch_decision_accept_blindly": 10,
+        "branch_decision_escalate": -2,
+        "npc_message_general": 0,
+    }
+    trust_delta = trust_changes.get(state["action_type"], 0)
+    updated_memory["relationship_score"] = max(0, min(100, npc_memory.get("relationship_score", 50) + trust_delta))
+    updated_memory["current_sentiment"] = (
+        "positive" if updated_memory["relationship_score"] > 65
+        else "negative" if updated_memory["relationship_score"] < 35
+        else "neutral"
+    )
+
+    # Add to key events if significant
+    if state["action_type"].startswith("branch_decision"):
+        events = list(updated_memory.get("key_events_memory", []))
+        events.append({
+            "event_type": state["action_type"],
+            "summary": state["user_action"][:60],
+            "scene_id": state["current_scene_id"]
+        })
+        updated_memory["key_events_memory"] = events[-5:]  # keep last 5
 
     updated_npc_states = dict(state["npc_states"])
-    updated_npc_states["sara_khan"] = updated_memory
+    updated_npc_states[active_npc_id] = updated_memory
 
-    # Update stakeholder trust in main state
     updated_trust = dict(state["stakeholder_trust"])
-    updated_trust["sara_khan"] = updated_memory["relationship_score"]
+    updated_trust[active_npc_id] = updated_memory["relationship_score"]
 
-    print(f"[Director] npc_node → Sara responds (trust now: {updated_memory['relationship_score']})")
+    print(f"[Director] npc_node → Sara responds | trust now: {updated_memory['relationship_score']}")
 
     return {
         "npc_response": dialogue,
         "npc_states": updated_npc_states,
         "stakeholder_trust": updated_trust,
         "ui_events": state["ui_events"] + [
-            {"type": "npc_message", "npc_id": "sara_khan", "dialogue": dialogue},
-            {"type": "trust_update", "npc_id": "sara_khan", "value": updated_memory["relationship_score"]},
+            {"type": "npc_message", "npc_id": active_npc_id, "npc_name": npc_config.get("name", "Sara"), "dialogue": dialogue},
+            {"type": "trust_update", "npc_id": active_npc_id, "value": updated_memory["relationship_score"]},
         ],
     }
 
 
 def scene_transition_node(state: SimulationState) -> dict:
-    """
-    Node 4 — Scene Transition (deterministic, no LLM)
-    Selects next scene based on current score vs authored thresholds.
-    Returns simulation_complete if all scenes are done.
-    """
+    """Deterministic scene selection. No LLM."""
     config = state["scenario_config"]
     scene_config = config["scenes"].get(state["current_scene_id"], {})
-    thresholds = config.get("difficulty_thresholds", {"stretch": 75, "support": 40})
+    thresholds = scene_config.get("score_thresholds", {"stretch": 75, "support": 40})
     next_scenes = scene_config.get("next_scenes", {})
 
-    # Compute average score across scored dimensions
     scores = state["scores"]
-    avg_score = sum(scores.values()) / len(scores) if scores else 50.0
+    avg_score = sum(v for v in scores.values() if v > 0) / max(1, sum(1 for v in scores.values() if v > 0))
 
-    # Select variant
-    if avg_score >= thresholds["stretch"]:
-        next_scene_id = next_scenes.get("stretch", next_scenes.get("default"))
+    if avg_score >= thresholds.get("stretch", 75):
+        next_scene_id = next_scenes.get("stretch", next_scenes.get("standard"))
         variant = "stretch"
-    elif avg_score <= thresholds["support"]:
-        next_scene_id = next_scenes.get("support", next_scenes.get("default"))
+    elif avg_score <= thresholds.get("support", 40):
+        next_scene_id = next_scenes.get("support", next_scenes.get("standard"))
         variant = "support"
     else:
-        next_scene_id = next_scenes.get("default")
+        next_scene_id = next_scenes.get("standard")
         variant = "standard"
 
-    # Check if next scene exists in config
-    if not next_scene_id or next_scene_id not in config["scenes"]:
-        # No more scenes — simulation complete
-        updated_completed = list(state["scenes_completed"]) + [state["current_scene_id"]]
-        print(f"[Director] scene_transition_node → SIMULATION COMPLETE (avg score: {avg_score:.1f})")
+    updated_completed = list(state["scenes_completed"]) + [state["current_scene_id"]]
+
+    # Check if next scene exists
+    if not next_scene_id or next_scene_id not in config.get("scenes", {}):
+        print(f"[Director] scene_transition_node → SIMULATION COMPLETE (avg: {avg_score:.1f})")
         return {
             "scenes_completed": updated_completed,
             "session_status": "simulation_complete",
             "next_scene_id": None,
-            "ui_events": state["ui_events"] + [{"type": "simulation_complete", "avg_score": avg_score}],
+            "ui_events": state["ui_events"] + [{"type": "simulation_complete", "avg_score": round(avg_score, 1)}],
         }
 
-    updated_completed = list(state["scenes_completed"]) + [state["current_scene_id"]]
-    print(f"[Director] scene_transition_node → next: {next_scene_id} ({variant} variant, avg score: {avg_score:.1f})")
-
+    print(f"[Director] scene_transition_node → {next_scene_id} ({variant}, avg: {avg_score:.1f})")
     return {
         "scenes_completed": updated_completed,
         "current_scene_id": next_scene_id,
         "session_status": "scene_complete",
         "next_scene_id": next_scene_id,
         "ui_events": state["ui_events"] + [
-            {"type": "scene_transition", "next_scene_id": next_scene_id, "variant": variant}
+            {"type": "scene_transition", "next_scene_id": next_scene_id, "variant": variant, "avg_score": round(avg_score, 1)}
         ],
     }
 
 
-# ─── ROUTING LOGIC ────────────────────────────────────────────────────────────
+# ─── ROUTING ─────────────────────────────────────────────────────────────────
 
 def route_after_classify(state: SimulationState) -> Literal["score_node", "npc_node", "scene_transition_node"]:
-    """
-    Conditional edge after classify_node.
-    All routing is deterministic — no LLM involved.
-    """
     action_type = state["action_type"]
-
     if action_type == "scene_complete":
         return "scene_transition_node"
     elif action_type.startswith("branch_decision"):
         return "score_node"
     else:
-        # npc_message_* types
         return "npc_node"
 
 
-def route_after_score(state: SimulationState) -> Literal["npc_node", "scene_transition_node", END]:
-    """
-    After scoring a decision, always get an NPC response too
-    (the NPC reacts to what the student just decided).
-    Unless the student triggered a scene-completing action.
-    """
-    # If the accept_blindly decision logically ends the scene, transition
+def route_after_score(state: SimulationState) -> Literal["npc_node", "scene_transition_node"]:
     if state["action_type"] == "branch_decision_accept_blindly":
         return "scene_transition_node"
     return "npc_node"
 
 
-def route_after_npc(state: SimulationState) -> Literal[END]:
-    """
-    After NPC responds, return to frontend — wait for next student action.
-    The graph ends here; the next student action starts a new execution.
-    """
-    return END
+# ─── GRAPH ───────────────────────────────────────────────────────────────────
 
-
-# ─── GRAPH ASSEMBLY ───────────────────────────────────────────────────────────
-
-def build_director() -> any:
-    """
-    Assembles and compiles the LangGraph StateGraph.
-    Call once at startup. Reuse the compiled graph for all sessions.
-    """
+def build_director():
     graph = StateGraph(SimulationState)
-
-    # Add nodes
     graph.add_node("classify_node", classify_node)
     graph.add_node("score_node", score_node)
     graph.add_node("npc_node", npc_node)
     graph.add_node("scene_transition_node", scene_transition_node)
-
-    # Entry point
     graph.set_entry_point("classify_node")
-
-    # Conditional edges — all routing is here, explicit and inspectable
     graph.add_conditional_edges("classify_node", route_after_classify, {
         "score_node": "score_node",
         "npc_node": "npc_node",
         "scene_transition_node": "scene_transition_node",
     })
-
     graph.add_conditional_edges("score_node", route_after_score, {
         "npc_node": "npc_node",
         "scene_transition_node": "scene_transition_node",
     })
-
     graph.add_edge("npc_node", END)
     graph.add_edge("scene_transition_node", END)
-
     return graph.compile()
 
 
-# ─── INITIAL STATE FACTORY ────────────────────────────────────────────────────
+# ─── INITIAL STATE ────────────────────────────────────────────────────────────
 
 def create_initial_state(session_id: str, user_id: str, domain: str = "pm", difficulty: str = "medium") -> SimulationState:
-    """Creates a fresh session state. In production this is loaded from Postgres."""
+    """
+    Creates fresh session state.
+    Loads scenario config from JSON files in backend/scenarios/{domain}/
+    """
+    scenario_config = load_full_scenario_config(domain)
+    first_scene_id = "scene_1"
+
+    # Load initial NPC trust values from NPC files
+    stakeholder_trust = {}
+    npc_states = {}
+    for npc_id, npc_config in scenario_config.get("npcs", {}).items():
+        initial_trust = npc_config.get("relationship", {}).get("initial_trust", 50)
+        stakeholder_trust[npc_id] = initial_trust
+        npc_states[npc_id] = {
+            "last_interaction_summary": "No prior interaction.",
+            "relationship_score": initial_trust,
+            "current_sentiment": npc_config.get("relationship", {}).get("sentiment_on_load", "neutral"),
+            "key_events_memory": []
+        }
+
     return SimulationState(
         session_id=session_id,
         user_id=user_id,
         domain=domain,
         difficulty=difficulty,
-        current_scene_id="scene_1",
+        current_scene_id=first_scene_id,
         scenes_completed=[],
         session_status="active",
         sprint_progress=0,
         time_remaining=None,
-        stakeholder_trust={"sara_khan": 50},
+        stakeholder_trust=stakeholder_trust,
         scores={
             "analytical_reasoning": 0.0,
             "ambiguity_tolerance": 0.0,
@@ -513,13 +510,13 @@ def create_initial_state(session_id: str, user_id: str, domain: str = "pm", diff
             "decisiveness": 0.0,
         },
         decisions_log=[],
-        npc_states=dict(INITIAL_NPC_MEMORY),
+        npc_states=npc_states,
         user_action="",
         action_type="",
         npc_response=None,
         score_update=None,
         next_scene_id=None,
         ui_events=[],
-        scenario_config=PM_SCENARIO,
-        user_profile={"user_id": user_id, "stated_interests": ["product", "tech"]},
+        scenario_config=scenario_config,
+        user_profile={"user_id": user_id},
     )
