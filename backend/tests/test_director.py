@@ -20,11 +20,10 @@ from agents.director import (
     scene_transition_node,
     route_after_classify,
     route_after_score,
-    route_after_npc,
     build_director,
     create_initial_state,
-    PM_SCENARIO,
 )
+
 
 # ─── MOCK NODES (replace LLM nodes for testing) ───────────────────────────────
 
