@@ -405,3 +405,59 @@ def save_onboarding_data(req: OnboardingRequest, current_user: dict = Depends(ge
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ─── REPORT GENERATION ────────────────────────────────────────────────────────
+
+from typing import List as TypingList
+
+class ReportRequest(BaseModel):
+    session_ids: TypingList[str]
+
+
+@app.post("/report/generate")
+def generate_report(
+    req: ReportRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Generate Career DNA Report for a user based on completed session IDs.
+    Calls career_fit_agent then report_agent in sequence.
+    """
+    from agents.career_fit_agent import generate_fit_report_data
+    from agents.report_agent import generate_report_narrative, save_report_to_supabase
+
+    if not req.session_ids:
+        raise HTTPException(status_code=400, detail="No session IDs provided")
+
+    sessions_data = []
+    for sid in req.session_ids:
+        state = load_session(sid)
+        if state and state.get("scores"):
+            sessions_data.append({
+                "domain":        state["domain"],
+                "scores":        state["scores"],
+                "decisions_log": state["decisions_log"],
+                "session_id":    sid
+            })
+
+    if not sessions_data:
+        raise HTTPException(
+            status_code=404,
+            detail="No valid completed sessions found for provided IDs"
+        )
+
+    fit_data = generate_fit_report_data(current_user["user_id"], sessions_data)
+    fit_data["sessions_included"] = req.session_ids
+
+    report = generate_report_narrative(fit_data)
+
+    report_id = None
+    if supabase:
+        report_id = save_report_to_supabase(report, supabase)
+
+    return {
+        "report_id":      report_id,
+        "report":         report,
+        "fit_scores":     fit_data["domain_fit_scores"],
+        "ranked_domains": fit_data["ranked_domains"],
+        "confidence":     fit_data["confidence_level"]
+    }
