@@ -1,0 +1,22 @@
+name: Vercel Branch Deployments
+
+# This tells GitHub to wake up when either branch gets pushed to
+on:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # If the push was to master, ping the master hook
+      - name: Deploy Master
+        if: github.ref == 'refs/heads/master'
+        run: curl -X POST "${{ secrets.VERCEL_HOOK_MASTER }}"
+
+      # If the push was to main, ping the main hook
+      - name: Deploy Main
+        if: github.ref == 'refs/heads/main'
+        run: curl -X POST "${{ secrets.VERCEL_HOOK_MAIN }}"
