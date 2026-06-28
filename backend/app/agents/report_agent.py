@@ -6,22 +6,19 @@ All scoring logic lives in career_fit_agent.py — this agent only narrates.
 """
 
 import json
+import logging
+
 from langchain_core.messages import HumanMessage
-from agents.director import get_llm
+
+from app.agents.llm import get_llm
+
+logger = logging.getLogger(__name__)
 
 
 def generate_report_narrative(fit_data: dict) -> dict:
     """
     Takes structured fit data from career_fit_agent.generate_fit_report_data()
     and generates Career DNA Report narrative using Groq.
-
-    Args:
-        fit_data: dict from generate_fit_report_data() containing
-                  domain_fit_scores, ranked_domains, dimension_scores,
-                  confidence_level, evidence_citations, user_id
-
-    Returns:
-        Complete report dict ready to insert into career_dna_reports table
     """
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.4)
 
@@ -38,7 +35,7 @@ def generate_report_narrative(fit_data: dict) -> dict:
         "sqa": "SQA Engineer",
         "data_analyst": "Data Analyst",
         "frontend": "Frontend Engineer",
-        "backend": "Backend Engineer"
+        "backend": "Backend Engineer",
     }
 
     prompt = f"""You are generating a Career DNA Report for a CS student who \
@@ -85,11 +82,10 @@ Return ONLY valid JSON, no markdown fences, no preamble, no explanation:
 
     try:
         response = llm.invoke([HumanMessage(content=prompt)])
-        raw = response.content.strip()
-        raw = raw.replace("```json", "").replace("```", "").strip()
+        raw = response.content.strip().replace("```json", "").replace("```", "").strip()
         narrative = json.loads(raw)
     except Exception as e:
-        print(f"[ReportAgent] LLM error: {e} — using fallback narrative")
+        logger.error(f"LLM error: {e} — using fallback narrative")
         narrative = {
             "summary_narrative": (
                 f"Based on your simulation session, your decisions suggest "
@@ -101,11 +97,11 @@ Return ONLY valid JSON, no markdown fences, no preamble, no explanation:
             "strengths": [
                 "Decision-making under ambiguity",
                 "Stakeholder communication clarity",
-                "Structured analytical reasoning"
+                "Structured analytical reasoning",
             ],
             "growth_areas": [
                 "Attention to edge cases — practice reviewing specs for missing details",
-                "Decisiveness under time pressure — try setting personal deadlines"
+                "Decisiveness under time pressure — try setting personal deadlines",
             ],
             "top_recommendation": top_domain,
             "second_recommendation": ranked[1] if len(ranked) > 1 else "none",
@@ -116,7 +112,7 @@ Return ONLY valid JSON, no markdown fences, no preamble, no explanation:
             "confidence_statement": (
                 f"This is a {confidence} estimate — completing more domain "
                 f"simulations will increase accuracy."
-            )
+            ),
         }
 
     return {
@@ -135,18 +131,5 @@ Return ONLY valid JSON, no markdown fences, no preamble, no explanation:
         "evidence_citations": evidence,
         "sessions_included": fit_data.get("sessions_included", []),
         "pdf_url":  None,
-        "version":  1
+        "version":  1,
     }
-
-
-def save_report_to_supabase(report_data: dict, supabase_client) -> str:
-    """Save generated report to career_dna_reports table. Returns report ID."""
-    try:
-        result = (supabase_client
-                  .table("career_dna_reports")
-                  .insert(report_data)
-                  .execute())
-        return result.data[0]["id"] if result.data else None
-    except Exception as e:
-        print(f"[ReportAgent] Supabase save error: {e}")
-        return None

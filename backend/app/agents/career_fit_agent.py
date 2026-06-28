@@ -9,7 +9,6 @@ No LLM needed — this is deterministic aggregation.
 """
 
 from __future__ import annotations
-from typing import Optional
 
 
 # ─── DOMAIN WEIGHT PROFILES ──────────────────────────────────────────────────
@@ -133,7 +132,6 @@ def aggregate_scores_from_sessions(sessions_data: list[dict]) -> dict[str, float
                     totals[dim] = []
                 totals[dim].append(float(val))
 
-    # Average across sessions
     return {
         dim: round(sum(vals) / len(vals), 1)
         for dim, vals in totals.items()
@@ -165,7 +163,6 @@ def build_evidence_citations(decisions_log: list[dict]) -> dict[str, list[str]]:
             if score and score >= 65 and dim in citations:
                 citations[dim].append(decision_ref)
 
-    # Keep top 3 evidence points per dimension
     return {dim: refs[:3] for dim, refs in citations.items()}
 
 
@@ -174,7 +171,7 @@ def build_evidence_citations(decisions_log: list[dict]) -> dict[str, list[str]]:
 def generate_fit_report_data(user_id: str, sessions: list[dict]) -> dict:
     """
     Full pipeline: sessions → aggregated scores → fit scores → evidence citations.
-    Called by Report Agent or directly from the API.
+    Called by report_service or directly from the API.
 
     Args:
         user_id: the student's user ID
@@ -183,14 +180,10 @@ def generate_fit_report_data(user_id: str, sessions: list[dict]) -> dict:
     Returns:
         Complete fit report data ready for the Report Agent to narrate.
     """
-    # Aggregate dimension scores
     dimension_scores = aggregate_scores_from_sessions(sessions)
-
-    # Compute fit scores
     fit_result = compute_career_fit(dimension_scores)
 
-    # Build evidence citations
-    all_decisions = []
+    all_decisions: list[dict] = []
     for session in sessions:
         all_decisions.extend(session.get("decisions_log", []))
     evidence = build_evidence_citations(all_decisions)
