@@ -1,0 +1,186 @@
+{
+  "scene_id": "scene_3_medium",
+  "domain": "pm",
+  "difficulty": "medium",
+  "title": "Stakeholder Conflict",
+  "description": "Sara wants a full viral referral loop \u2014 social sharing, tracking links, leaderboard. Rayan says that's 3 sprints minimum. The student must mediate, define a scoped MVP version, and get both to agree in writing before updating the PRD.",
+  "estimated_duration_minutes": 10,
+  "next_scenes": {
+    "stretch": "scene_4_medium_stretch",
+    "standard": "scene_4_medium",
+    "support": "scene_4_medium_support"
+  },
+  "score_thresholds": {
+    "stretch": 75,
+    "support": 40
+  },
+  "context": "The student made a sprint decision in scene_2. Sara accepted it reluctantly. Now she has sent Rayan her full feature brief for the referral feature \u2014 and Rayan has come back saying it's a 3-sprint build. Both of them are now waiting for the PM to define scope. The conflict is not hostile \u2014 it's a genuine misalignment on what 'referral feature' means.",
+  "active_npcs": [
+    "sara_khan",
+    "rayan_eng_lead"
+  ],
+  "scene_setup": {
+    "sara_position": "Wants the full viral loop: social sharing buttons, unique tracking links per user, a referral leaderboard showing top inviters, and an automated reward trigger when a referral converts. She believes this is what will actually move the Q3 growth metric.",
+    "rayan_position": "Will build the referral feature but needs it scoped down to something his team can ship in 2 weeks. His estimate: referral link generation only is 1 week. Adding tracking is another week. Social sharing and leaderboard are 4+ additional weeks.",
+    "prd_state": "PRD from scene_1 is still mostly blank. Success metrics and scope fields are empty. Student must fill them in before the scene can complete."
+  },
+  "conflict_opener": {
+    "content": "I pulled up Sara's spec. Full viral loop, social sharing, leaderboard. That's a 6-week build. We have 2 weeks left in the sprint window. Someone needs to define what 'referral feature' actually means before I assign anything.",
+    "time_offset_minutes": 0
+  },
+  "scope_response": {
+    "accepts_reduced_scope": "That works. Referral link generation only, no leaderboard in v1 \u2014 I can work with that. Send me the written scope and I'll plan the tickets.",
+    "pushes_back_on_scope": "I can do the referral link piece. But I need the success metric in writing too. What does 'working' mean for this feature?",
+    "rejects_full_scope": "I can't commit to the full scope Sara described. If leadership is pushing for it, that needs to come from the PM in writing, not verbally."
+  },
+  "prd_document": {
+    "title": "Referral Feature \u2014 Scoped Brief",
+    "status": "in_progress",
+    "version": "0.2",
+    "sections": {
+      "overview": "Referral feature allowing users to invite friends. Scope TBD.",
+      "problem_statement": "User growth is below target. Referral programs have shown 30% CAC reduction in comparable products.",
+      "success_metrics": null,
+      "scope": null,
+      "out_of_scope": null,
+      "technical_requirements": null,
+      "timeline": "Current sprint",
+      "stakeholders": [
+        "Sara Khan (Marketing)",
+        "Rayan Ahmed (Engineering)",
+        "CEO"
+      ]
+    },
+    "required_fields_to_complete_scene": [
+      "success_metrics",
+      "scope",
+      "out_of_scope"
+    ],
+    "notes": "Student must fill in at least scope, out_of_scope, and success_metrics to complete the scene. The specific content of those fields feeds into branch point scoring."
+  },
+  "branch_points": {
+    "bp_4": {
+      "id": "bp_4",
+      "trigger": "mediation_response",
+      "description": "How does the student respond to the Sara vs Rayan conflict?",
+      "rubric_id": "pm_mediation_rubric",
+      "dimensions": [
+        "ambiguity_tolerance",
+        "analytical_reasoning",
+        "stakeholder_management",
+        "communication_clarity"
+      ],
+      "scoring_guide": {
+        "ambiguity_tolerance": {
+          "high": "Asks Sara what the minimum viable version of the referral feature is that would still hit the Q3 OKR, rather than choosing sides or deferring",
+          "medium": "Acknowledges both positions and proposes a general compromise without specifics",
+          "low": "Takes one side completely, avoids the conflict, or says 'let's discuss later'"
+        },
+        "analytical_reasoning": {
+          "high": "References the Q3 OKR to anchor the scope decision \u2014 asks what metric needs to move and what the minimum feature to move it is",
+          "medium": "Reasons about scope based on engineering capacity without connecting back to the business goal",
+          "low": "Makes a scope decision with no stated reasoning"
+        },
+        "stakeholder_management": {
+          "high": "Addresses both Sara and Rayan in the same message or back-to-back \u2014 doesn't leave one waiting while solving the other's problem",
+          "medium": "Addresses one stakeholder and follows up with the other shortly after",
+          "low": "Only addresses one stakeholder or sends a message to neither"
+        },
+        "communication_clarity": {
+          "high": "Proposes a specific reduced scope, not a vague 'compromise' \u2014 e.g. 'referral link generation in v1, leaderboard in v2'",
+          "medium": "Proposes a compromise but without specifics",
+          "low": "Gives a vague response that doesn't resolve the conflict"
+        }
+      },
+      "good_signals": [
+        "asks Sara what minimum viable version hits the Q3 OKR",
+        "asks Rayan what's realistic in 2 weeks",
+        "proposes a specific reduced scope (not just 'let's compromise')",
+        "references the Q3 OKR to anchor the decision",
+        "proposes leaderboard and social sharing as v2 roadmap items",
+        "addresses both Sara and Rayan"
+      ],
+      "bad_signals": [
+        "takes Sara's side and tells Rayan to make it work",
+        "takes Rayan's side without explaining the trade-off to Sara",
+        "says 'let's get everyone on a call' without making a decision",
+        "gives a vague 'we'll find a solution' response",
+        "avoids the conflict entirely"
+      ]
+    },
+    "bp_5": {
+      "id": "bp_5",
+      "trigger": "scope_decision_written",
+      "description": "Student writes and sends the scope decision to both stakeholders and updates the PRD",
+      "rubric_id": "pm_scope_decision_rubric",
+      "dimensions": [
+        "decisiveness",
+        "analytical_reasoning",
+        "communication_clarity",
+        "attention_to_detail"
+      ],
+      "scoring_guide": {
+        "decisiveness": {
+          "high": "Sends a clear, specific scope decision without being asked twice",
+          "medium": "Sends a scope decision after one prompt from Rayan or Sara",
+          "low": "Still hasn't sent a written scope decision after two prompts"
+        },
+        "analytical_reasoning": {
+          "high": "Scope decision explains what's included in v1, what's deferred to v2, and why the v1 scope is sufficient to hit the Q3 OKR",
+          "medium": "Scope decision lists what's in and what's out but doesn't explain why",
+          "low": "Scope decision is vague or contradicts the earlier mediation response"
+        },
+        "communication_clarity": {
+          "high": "Message is specific enough that both Sara and Rayan can act on it immediately with no follow-up questions needed",
+          "medium": "Message is clear but missing one key piece \u2014 e.g. has scope but no timeline, or has timeline but no success metric",
+          "low": "Message is vague, too long, or doesn't address both stakeholders"
+        },
+        "attention_to_detail": {
+          "high": "PRD is updated with scope, out_of_scope, and a success metric before the scene ends",
+          "medium": "PRD is partially updated \u2014 one or two fields filled in",
+          "low": "PRD is not updated"
+        }
+      },
+      "good_signals": [
+        "includes a specific feature definition in the scope message (e.g. 'referral link generation only, no leaderboard, no social sharing in v1')",
+        "includes a success metric (e.g. '200 referral link clicks in first 2 weeks')",
+        "explicitly states what is out of scope for v1",
+        "mentions v2 for the deferred features",
+        "sends the message to both Sara and Rayan",
+        "updates the PRD scope, out_of_scope, and success_metrics fields"
+      ],
+      "bad_signals": [
+        "scope message says 'a simple referral feature' without specifics",
+        "no success metric in the message or PRD",
+        "only tells one stakeholder",
+        "PRD is not updated at all",
+        "scope contradicts what was agreed in mediation"
+      ]
+    }
+  },
+  "difficulty_modifiers": {
+    "hint_available": false,
+    "hint_text": null,
+    "sara_compromise_willingness": "medium",
+    "rayan_compromise_willingness": "high",
+    "prd_template_prefilled": false,
+    "ceo_email_triggered": false,
+    "sara_pushback_on_reduced_scope": true,
+    "sara_pushback_message": "I appreciate you trying to scope this down but I'm worried a referral link with no leaderboard won't actually drive the behaviour we need. Can we at least keep the leaderboard?"
+  },
+  "scene_completion_criteria": {
+    "min_branch_points_hit": 1,
+    "required_branch_points": [
+      "bp_4"
+    ],
+    "optional_branch_points": [
+      "bp_5"
+    ],
+    "prd_update_required": true,
+    "prd_required_fields": [
+      "scope",
+      "success_metrics"
+    ],
+    "auto_complete_after_minutes": 12
+  }
+}
