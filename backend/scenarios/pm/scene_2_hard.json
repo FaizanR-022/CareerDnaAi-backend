@@ -1,0 +1,148 @@
+{
+  "scene_id": "scene_2_hard",
+  "domain": "pm",
+  "difficulty": "hard",
+  "title": "Sprint Trade-off Decision",
+  "description": "Sara has been told there is no spare capacity. Now the student must make a concrete decision: cut a ticket, push to next sprint, or escalate \u2014 and communicate it clearly to Sara and the Engineering Lead.",
+  "estimated_duration_minutes": 8,
+  "next_scenes": {
+    "stretch": "scene_3_hard",
+    "standard": "scene_3_hard",
+    "support": "scene_3_hard_support"
+  },
+  "score_thresholds": {
+    "stretch": 80,
+    "support": 45
+  },
+  "context": "The student has already spoken with Sara. Sara is escalating and has looped in the CEO. Rayan has joined the channel under pressure, worried his team will be blindsided.",
+  "active_npcs": [
+    "sara_khan",
+    "rayan_eng_lead"
+  ],
+  "npcs": {
+    "rayan_eng_lead": {
+      "npc_id": "rayan_eng_lead",
+      "name": "Rayan Ahmed",
+      "role": "Engineering Lead",
+      "personality": "Calm, data-driven, protective of his team's capacity. Respects clear reasoning. Won't commit to scope changes without a written decision from the PM.",
+      "goal": "Protect the sprint and make sure the team is not overloaded. Needs a clear, written decision from the PM before he tells his engineers anything.",
+      "opening_message": "Sara just told me the CEO wants this in the sprint. My team is already at capacity. I need a decision from the PM in writing before I go back to them. What are we doing?",
+      "trust": {
+        "initial": 60,
+        "trust_change_rules": {
+          "clear_decision_with_reasoning": 15,
+          "escalates_to_rayan_appropriately": 10,
+          "vague_response": -10,
+          "blames_sara": -15,
+          "overcommits_without_checking": -20
+        }
+      }
+    },
+    "sara_khan": {
+      "npc_id": "sara_khan",
+      "name": "Sara Khan",
+      "role": "Head of Marketing",
+      "followup_message": "I've already told the CEO this is happening. I need an answer now, not later today."
+    }
+  },
+  "sprint_board": {
+    "capacity": 6,
+    "note": "Same sprint board as scene_1. Student now must make a cut decision.",
+    "cuttable_tickets": [
+      {
+        "id": "TICK-104",
+        "title": "Email notification templates",
+        "priority": "could_have",
+        "points": 1,
+        "cut_consequence": "Sara may push back mildly but this is the safest cut. Low risk.",
+        "cut_justification": "Could_have priority, low complexity, can ship next sprint without major impact"
+      }
+    ],
+    "borderline_tickets": [
+      {
+        "id": "TICK-103",
+        "title": "Onboarding flow redesign",
+        "priority": "should_have",
+        "points": 2,
+        "cut_consequence": "Impacts Q3 activation metrics. Engineering Lead will ask for justification.",
+        "cut_justification": "Should_have \u2014 cuttable if student provides strong reasoning about referral feature ROI"
+      },
+      {
+        "id": "TICK-105",
+        "title": "Analytics event tracking",
+        "priority": "should_have",
+        "points": 2,
+        "cut_consequence": "Blocks Q3 OKR reporting. Engineering Lead will flag this.",
+        "cut_justification": "Should_have \u2014 cutting this has downstream consequences student should identify"
+      }
+    ],
+    "uncuttable_tickets": [
+      "TICK-101",
+      "TICK-106"
+    ]
+  },
+  "branch_points": {
+    "bp_3": {
+      "id": "bp_3",
+      "trigger": "cut_or_defer_decision",
+      "description": "Student must make and communicate a concrete sprint decision",
+      "rubric_id": "pm_sprint_decision_rubric",
+      "dimensions": [
+        "decisiveness",
+        "analytical_reasoning",
+        "stakeholder_management",
+        "communication_clarity"
+      ],
+      "scoring_guide": {
+        "decisiveness": {
+          "high": "Makes a clear decision and communicates it without being asked twice",
+          "medium": "Makes a decision but needs prompting to commit",
+          "low": "Avoids making a decision, keeps asking for more time"
+        },
+        "analytical_reasoning": {
+          "high": "Decision is backed by reasoning \u2014 references priority level, impact, or data",
+          "medium": "Decision is reasonable but reasoning is not stated",
+          "low": "Decision appears random or contradicts sprint capacity data"
+        },
+        "stakeholder_management": {
+          "high": "Communicates decision to BOTH Sara and Rayan clearly and in appropriate tone for each",
+          "medium": "Communicates to one stakeholder but forgets the other",
+          "low": "Makes decision internally, doesn't communicate to either stakeholder"
+        },
+        "communication_clarity": {
+          "high": "Message is concise, professional, and actionable \u2014 recipient knows exactly what to do next",
+          "medium": "Message conveys the decision but is unclear on next steps",
+          "low": "Message is vague, too long, or uses jargon"
+        }
+      },
+      "good_signals": [
+        "identifies TICK-104 as the safest cut",
+        "communicates decision in writing to both Sara and Rayan",
+        "explains the trade-off reasoning",
+        "asks Rayan to confirm engineering feasibility of referral feature before committing",
+        "sets a clear timeline for the referral feature work",
+        "mentions the decision in the PRD"
+      ],
+      "bad_signals": [
+        "cuts TICK-101 or TICK-106 (production bug or security requirement)",
+        "agrees to add referral feature without cutting anything",
+        "makes the decision but only tells Sara, not Rayan",
+        "still hasn't made a decision after two prompts from Rayan"
+      ]
+    }
+  },
+  "difficulty_modifiers": {
+    "hint_available": false,
+    "hint_text": null,
+    "rayan_pressure": "high",
+    "sara_pressure": "high",
+    "priority_labels_visible": false
+  },
+  "scene_completion_criteria": {
+    "min_branch_points_hit": 1,
+    "required_branch_points": [
+      "bp_3"
+    ],
+    "auto_complete_after_minutes": 8
+  }
+}

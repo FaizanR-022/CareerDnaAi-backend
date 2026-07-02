@@ -1,30 +1,57 @@
 {
-  "scene_id": "scene_4",
+  "scene_id": "scene_4_medium",
   "domain": "pm",
+  "difficulty": "medium",
   "title": "Roadmap Presentation",
   "description": "The student must defend their referral feature scope decision to Zara Malik (VP of Product) in a 10-minute standup. Zara is skeptical, data-driven, and will probe with follow-up questions if the first answer is weak. Sara has already called Zara. The student needs to hold their position with evidence.",
   "estimated_duration_minutes": 8,
   "next_scenes": null,
   "is_final_scene": true,
-
+  "score_thresholds": {
+    "stretch": 75,
+    "support": 40
+  },
   "context": "The student has defined and communicated the referral feature scope in scene_3. Sara called Zara to flag her concerns about the scope cut. Zara has now pulled the student into a quick standup to understand the decision before she signs off. The PRD from scene_3 is visible to the student and to Zara.",
-
-  "active_npcs": ["zara_malik"],
-
+  "active_npcs": [
+    "zara_malik"
+  ],
   "standup_setup": {
     "duration_minutes": 10,
     "format": "One-on-one standup via Slack channel #product-leadership",
-    "zara_has_seen": ["The updated PRD scope field", "Sara's concerns"],
-    "zara_has_not_seen": ["The full conversation history with Sara and Rayan", "The specific tickets cut in scene_2"]
+    "zara_has_seen": [
+      "The updated PRD scope field",
+      "Sara's concerns"
+    ],
+    "zara_has_not_seen": [
+      "The full conversation history with Sara and Rayan",
+      "The specific tickets cut in scene_2"
+    ]
   },
-
+  "npc_opening_messages": {
+    "zara_malik": {
+      "channel": "standup",
+      "messages": [
+        {
+          "content": "I saw the scope change in the PRD. I need to understand the reasoning before I sign off on this.",
+          "time_offset_minutes": 0
+        },
+        {
+          "content": "Specifically \u2014 what are we giving up and why is that acceptable?",
+          "time_offset_minutes": 1
+        }
+      ]
+    }
+  },
   "prd_document": {
-    "title": "Referral Feature — Scoped Brief",
+    "title": "Referral Feature \u2014 Scoped Brief",
     "status": "carried_over_from_scene_3",
-    "note": "PRD state is inherited from scene_3. If student filled in scope, success_metrics, and out_of_scope in scene_3, those values are visible here. If not, those fields are still blank — which Zara will notice.",
-    "fields_zara_checks": ["scope", "success_metrics", "out_of_scope"]
+    "note": "PRD state is inherited from scene_3. If student filled in scope, success_metrics, and out_of_scope in scene_3, those values are visible here. If not, those fields are still blank \u2014 which Zara will notice.",
+    "fields_zara_checks": [
+      "scope",
+      "success_metrics",
+      "out_of_scope"
+    ]
   },
-
   "branch_points": {
     "bp_6": {
       "id": "bp_6",
@@ -39,13 +66,13 @@
       ],
       "scoring_guide": {
         "decisiveness": {
-          "high": "Owns the decision clearly — uses 'I decided' not 'we decided' or 'the team felt'",
+          "high": "Owns the decision clearly \u2014 uses 'I decided' not 'we decided' or 'the team felt'",
           "medium": "Defends the decision but attributes it to the team",
           "low": "Hedges, says 'we thought maybe' or immediately offers to revisit the scope"
         },
         "analytical_reasoning": {
-          "high": "References the capacity constraint AND the Q3 OKR — explains that v1 scope is sufficient to test the referral hypothesis before investing in leaderboard complexity",
-          "medium": "References one of: capacity constraint, timeline, or OKR — but not the full reasoning chain",
+          "high": "References the capacity constraint AND the Q3 OKR \u2014 explains that v1 scope is sufficient to test the referral hypothesis before investing in leaderboard complexity",
+          "medium": "References one of: capacity constraint, timeline, or OKR \u2014 but not the full reasoning chain",
           "low": "Gives a vague answer with no specific reasoning ('it was too complex' without explaining what that means)"
         },
         "communication_clarity": {
@@ -75,7 +102,6 @@
         "cannot state the success metric"
       ]
     },
-
     "bp_7": {
       "id": "bp_7",
       "trigger": "zara_pushback_response",
@@ -89,34 +115,27 @@
       ],
       "scoring_guide": {
         "decisiveness": {
-          "high": "Holds their position under pressure — does not change the scope just because Zara pushed back. If they do change it, they have a genuinely new piece of information to justify the change.",
+          "high": "Holds their position under pressure \u2014 does not change the scope just because Zara pushed back. If they do change it, they have a genuinely new piece of information to justify the change.",
           "medium": "Holds position initially but softens when Zara pushes a second time",
           "low": "Immediately caves and agrees to the full scope when Zara pushes back"
         },
         "analytical_reasoning": {
-          "high": "Responds to each of Zara's questions with a specific, reasoned answer — including the trap question about doing it 'properly the first time' (correct answer: MVP-first is the right call when requirements are still uncertain)",
+          "high": "Responds to each of Zara's questions with a specific, reasoned answer \u2014 including the trap question about doing it 'properly the first time' (correct answer: MVP-first is the right call when requirements are still uncertain)",
           "medium": "Handles the direct questions well but struggles with the trap question",
           "low": "Gives generic answers that don't actually address what Zara asked"
         },
         "communication_clarity": {
-          "high": "Each answer is concise and addresses exactly what was asked — Zara does not need to repeat a question",
+          "high": "Each answer is concise and addresses exactly what was asked \u2014 Zara does not need to repeat a question",
           "medium": "Answers are mostly clear but occasionally over-long or off-topic",
           "low": "Answers are defensive, evasive, or contradict the first response"
         },
         "stakeholder_management": {
-          "high": "On the hard-mode question ('Sara says you committed to the full feature') — handles it diplomatically: acknowledges Sara's perspective, clarifies what was actually committed, does not throw Sara under the bus",
+          "high": "On the hard-mode question ('Sara says you committed to the full feature') \u2014 handles it diplomatically: acknowledges Sara's perspective, clarifies what was actually committed, does not throw Sara under the bus",
           "medium": "Clarifies the misunderstanding but is slightly defensive",
           "low": "Either blames Sara directly or agrees that they did commit to the full feature (if they did not)"
         }
       },
       "pushback_questions_by_difficulty": {
-        "easy": [
-          {
-            "question": "What's the success metric for v1?",
-            "trap": false,
-            "ideal_answer_type": "specific metric — e.g. '200 referral link clicks in first 2 weeks post-launch'"
-          }
-        ],
         "medium": [
           {
             "question": "What's the success metric for v1?",
@@ -126,32 +145,8 @@
           {
             "question": "Why not just do it properly the first time?",
             "trap": true,
-            "trap_explanation": "Designed to make student over-commit or get defensive. Correct response: MVP-first is intentional — we don't know which referral mechanic drives conversion yet, so we ship the minimum to test the hypothesis before investing 3 more sprints.",
+            "trap_explanation": "Designed to make student over-commit or get defensive. Correct response: MVP-first is intentional \u2014 we don't know which referral mechanic drives conversion yet, so we ship the minimum to test the hypothesis before investing 3 more sprints.",
             "ideal_answer_type": "MVP rationale + hypothesis testing framing"
-          }
-        ],
-        "hard": [
-          {
-            "question": "What's the success metric for v1?",
-            "trap": false,
-            "ideal_answer_type": "specific metric"
-          },
-          {
-            "question": "Why not just do it properly the first time?",
-            "trap": true,
-            "trap_explanation": "MVP-first rationale expected",
-            "ideal_answer_type": "MVP rationale"
-          },
-          {
-            "question": "Sara says you committed to the full feature to her originally — is that true?",
-            "trap": true,
-            "trap_explanation": "Tests whether student handles a misrepresentation diplomatically. Correct response: clarify what was actually said without blaming Sara — e.g. 'I told Sara we'd prioritise the referral feature this sprint. The scope was defined after I got engineering's estimate.'",
-            "ideal_answer_type": "diplomatic clarification, no blame"
-          },
-          {
-            "question": "What's the v2 plan if v1 hits its metric?",
-            "trap": false,
-            "ideal_answer_type": "specific v2 scope — e.g. leaderboard in sprint N+2 once referral link conversion is validated"
           }
         ]
       },
@@ -172,37 +167,15 @@
       ]
     }
   },
-
   "difficulty_modifiers": {
-    "easy": {
-      "hint_available": true,
-      "hint_text": "Tip: Own your decision. Use 'I decided' not 'we decided'. Be ready to state a specific success metric.",
-      "zara_question_count": 2,
-      "zara_pressure_level": "low",
-      "zara_followup_if_weak": true,
-      "prd_visible_to_zara": true
-    },
-    "medium": {
-      "hint_available": false,
-      "hint_text": null,
-      "zara_question_count": 3,
-      "zara_pressure_level": "medium",
-      "zara_followup_if_weak": true,
-      "prd_visible_to_zara": true,
-      "includes_trap_question": true
-    },
-    "hard": {
-      "hint_available": false,
-      "hint_text": null,
-      "zara_question_count": 4,
-      "zara_pressure_level": "high",
-      "zara_followup_if_weak": true,
-      "prd_visible_to_zara": true,
-      "includes_trap_question": true,
-      "includes_sara_misrepresentation_question": true
-    }
+    "hint_available": false,
+    "hint_text": null,
+    "zara_question_count": 3,
+    "zara_pressure_level": "medium",
+    "zara_followup_if_weak": true,
+    "prd_visible_to_zara": true,
+    "includes_trap_question": true
   },
-
   "scene_outcomes": {
     "strong_performance": {
       "condition": "Student scores 75+ on both bp_6 and bp_7",
@@ -220,11 +193,14 @@
       "outcome_label": "VP not satisfied"
     }
   },
-
   "scene_completion_criteria": {
     "min_branch_points_hit": 1,
-    "required_branch_points": ["bp_6"],
-    "optional_branch_points": ["bp_7"],
+    "required_branch_points": [
+      "bp_6"
+    ],
+    "optional_branch_points": [
+      "bp_7"
+    ],
     "auto_complete_after_minutes": 12
   }
 }

@@ -1,23 +1,24 @@
 {
-  "scene_id": "scene_2",
+  "scene_id": "scene_2_medium",
   "domain": "pm",
+  "difficulty": "medium",
   "title": "Sprint Trade-off Decision",
-  "description": "Sara has been told there is no spare capacity. Now the student must make a concrete decision: cut a ticket, push to next sprint, or escalate — and communicate it clearly to Sara and the Engineering Lead.",
+  "description": "Sara has been told there is no spare capacity. Now the student must make a concrete decision: cut a ticket, push to next sprint, or escalate \u2014 and communicate it clearly to Sara and the Engineering Lead.",
   "estimated_duration_minutes": 8,
   "next_scenes": {
-    "stretch": "scene_3_stretch",
-    "standard": "scene_3",
-    "support": "scene_3_support"
+    "stretch": "scene_3_medium_stretch",
+    "standard": "scene_3_medium",
+    "support": "scene_3_medium_support"
   },
   "score_thresholds": {
     "stretch": 75,
     "support": 40
   },
-
-  "context": "The student has already spoken with Sara. Sara knows the sprint is full but is still pushing. The Engineering Lead (Rayan) has just joined the Slack channel to check in on the situation.",
-
-  "active_npcs": ["sara_khan", "rayan_eng_lead"],
-
+  "context": "The student has already spoken with Sara. Sara knows the sprint is full but is still pushing. Rayan has joined the Slack channel to check in on the situation.",
+  "active_npcs": [
+    "sara_khan",
+    "rayan_eng_lead"
+  ],
   "npcs": {
     "rayan_eng_lead": {
       "npc_id": "rayan_eng_lead",
@@ -25,11 +26,7 @@
       "role": "Engineering Lead",
       "personality": "Calm, data-driven, protective of his team's capacity. Respects clear reasoning. Won't commit to scope changes without a written decision from the PM.",
       "goal": "Protect the sprint and make sure the team is not overloaded. Needs a clear, written decision from the PM before he tells his engineers anything.",
-      "opening_message": {
-        "easy": "Hey, Sara looped me in. I saw the referral feature request — just want to make sure we're aligned before I say anything to the team. What's the plan?",
-        "medium": "Sara mentioned the referral feature. I need a clear decision from you — are we cutting something or pushing to next sprint? My team needs to know.",
-        "hard": "Sara just told me the CEO wants this in the sprint. My team is already at capacity. I need a decision from the PM in writing before I go back to them. What are we doing?"
-      },
+      "opening_message": "Sara mentioned the referral feature. I need a clear decision from you \u2014 are we cutting something or pushing to next sprint? My team needs to know.",
       "trust": {
         "initial": 60,
         "trust_change_rules": {
@@ -40,9 +37,14 @@
           "overcommits_without_checking": -20
         }
       }
+    },
+    "sara_khan": {
+      "npc_id": "sara_khan",
+      "name": "Sara Khan",
+      "role": "Head of Marketing",
+      "followup_message": "Following up \u2014 I need to know today so I can update the roadmap deck before EOD."
     }
   },
-
   "sprint_board": {
     "capacity": 6,
     "note": "Same sprint board as scene_1. Student now must make a cut decision.",
@@ -63,7 +65,7 @@
         "priority": "should_have",
         "points": 2,
         "cut_consequence": "Impacts Q3 activation metrics. Engineering Lead will ask for justification.",
-        "cut_justification": "Should_have — cuttable if student provides strong reasoning about referral feature ROI"
+        "cut_justification": "Should_have \u2014 cuttable if student provides strong reasoning about referral feature ROI"
       },
       {
         "id": "TICK-105",
@@ -71,12 +73,14 @@
         "priority": "should_have",
         "points": 2,
         "cut_consequence": "Blocks Q3 OKR reporting. Engineering Lead will flag this.",
-        "cut_justification": "Should_have — cutting this has downstream consequences student should identify"
+        "cut_justification": "Should_have \u2014 cutting this has downstream consequences student should identify"
       }
     ],
-    "uncuttable_tickets": ["TICK-101", "TICK-106"]
+    "uncuttable_tickets": [
+      "TICK-101",
+      "TICK-106"
+    ]
   },
-
   "branch_points": {
     "bp_3": {
       "id": "bp_3",
@@ -96,7 +100,7 @@
           "low": "Avoids making a decision, keeps asking for more time"
         },
         "analytical_reasoning": {
-          "high": "Decision is backed by reasoning — references priority level, impact, or data",
+          "high": "Decision is backed by reasoning \u2014 references priority level, impact, or data",
           "medium": "Decision is reasonable but reasoning is not stated",
           "low": "Decision appears random or contradicts sprint capacity data"
         },
@@ -106,7 +110,7 @@
           "low": "Makes decision internally, doesn't communicate to either stakeholder"
         },
         "communication_clarity": {
-          "high": "Message is concise, professional, and actionable — recipient knows exactly what to do next",
+          "high": "Message is concise, professional, and actionable \u2014 recipient knows exactly what to do next",
           "medium": "Message conveys the decision but is unclear on next steps",
           "low": "Message is vague, too long, or uses jargon"
         }
@@ -127,34 +131,18 @@
       ]
     }
   },
-
   "difficulty_modifiers": {
-    "easy": {
-      "hint_available": true,
-      "hint_text": "Tip: You need to tell both Sara AND Rayan what you've decided. Check the ticket priorities before cutting anything.",
-      "rayan_pressure": "low",
-      "sara_pressure": "low",
-      "priority_labels_visible": true
-    },
-    "medium": {
-      "hint_available": true,
-      "hint_text": "Think about who needs to know your decision and what information they each need.",
-      "rayan_pressure": "medium",
-      "sara_pressure": "medium",
-      "priority_labels_visible": true
-    },
-    "hard": {
-      "hint_available": false,
-      "hint_text": null,
-      "rayan_pressure": "high",
-      "sara_pressure": "high",
-      "priority_labels_visible": false
-    }
+    "hint_available": true,
+    "hint_text": "Think about who needs to know your decision and what information they each need.",
+    "rayan_pressure": "medium",
+    "sara_pressure": "medium",
+    "priority_labels_visible": true
   },
-
   "scene_completion_criteria": {
     "min_branch_points_hit": 1,
-    "required_branch_points": ["bp_3"],
+    "required_branch_points": [
+      "bp_3"
+    ],
     "auto_complete_after_minutes": 10
   }
 }

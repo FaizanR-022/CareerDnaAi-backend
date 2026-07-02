@@ -1,19 +1,19 @@
 {
-  "scene_id": "scene_1",
+  "scene_id": "scene_1_medium",
   "domain": "pm",
+  "difficulty": "medium",
   "title": "Ambiguous Feature Request",
   "description": "Sara Khan from Marketing has sent a voice memo and follow-up messages requesting a referral feature in the current sprint. The sprint is already at full capacity.",
   "estimated_duration_minutes": 8,
   "next_scenes": {
-    "stretch": "scene_2_stretch",
-    "standard": "scene_2",
-    "support": "scene_2_support"
+    "stretch": "scene_2_medium_stretch",
+    "standard": "scene_2_medium",
+    "support": "scene_2_medium_support"
   },
   "score_thresholds": {
     "stretch": 75,
     "support": 40
   },
-
   "sprint_board": {
     "capacity": 6,
     "tickets": [
@@ -24,7 +24,7 @@
         "points": 3,
         "status": "in_progress",
         "assigned_to": "Engineering",
-        "notes": "Production bug — cannot be cut"
+        "notes": "Production bug \u2014 cannot be cut"
       },
       {
         "id": "TICK-102",
@@ -76,9 +76,8 @@
     "total_capacity_points": 12,
     "available_points": 0
   },
-
   "prd_document": {
-    "title": "Referral Feature — Initial Brief",
+    "title": "Referral Feature \u2014 Initial Brief",
     "status": "draft",
     "author": "Sara Khan",
     "version": "0.1",
@@ -89,14 +88,42 @@
       "scope": "TBD",
       "technical_requirements": null,
       "timeline": "This sprint",
-      "stakeholders": ["Sara Khan (Marketing)", "CEO", "Engineering"]
+      "stakeholders": [
+        "Sara Khan (Marketing)",
+        "CEO",
+        "Engineering"
+      ]
     },
-    "missing_fields": ["success_metrics", "scope", "technical_requirements"],
+    "missing_fields": [
+      "success_metrics",
+      "scope",
+      "technical_requirements"
+    ],
     "notes": "PRD is intentionally incomplete. Student must identify and ask about missing fields."
   },
-
-  "active_npcs": ["sara_khan"],
-
+  "active_npcs": [
+    "sara_khan"
+  ],
+  "npc_opening_messages": {
+    "sara_khan": {
+      "channel": "developer",
+      "messages": [
+        {
+          "content": "Hey \u2014 heads up, I just got out of the Q3 planning meeting. The referral feature needs to be in this sprint. Leadership is asking about it.",
+          "time_offset_minutes": 0
+        },
+        {
+          "content": "Can you let me know where we stand on capacity? I need to update the deck by EOD.",
+          "time_offset_minutes": 2
+        }
+      ]
+    }
+  },
+  "voice_memo": {
+    "duration": "0:35",
+    "tone": "professional, slightly pressured",
+    "transcript": "Hey, so I just came out of the Q3 planning session and the referral feature came up as a priority. Leadership wants to see it this sprint. I know we have other stuff on but can we find a way to fit it in? I need to know by EOD so I can update the roadmap deck."
+  },
   "branch_points": {
     "bp_1": {
       "id": "bp_1",
@@ -154,48 +181,40 @@
       ],
       "options": {
         "cut_ticket": {
-          "valid_cuts": ["TICK-104"],
-          "invalid_cuts": ["TICK-101", "TICK-106"],
-          "borderline_cuts": ["TICK-103", "TICK-105"]
+          "valid_cuts": [
+            "TICK-104"
+          ],
+          "invalid_cuts": [
+            "TICK-101",
+            "TICK-106"
+          ],
+          "borderline_cuts": [
+            "TICK-103",
+            "TICK-105"
+          ]
         },
-        "push_to_next_sprint": "valid — must communicate reason to Sara",
-        "escalate_to_eng_lead": "valid — shows good judgment",
-        "accept_without_cutting": "invalid — sprint is at capacity"
+        "push_to_next_sprint": "valid \u2014 must communicate reason to Sara",
+        "escalate_to_eng_lead": "valid \u2014 shows good judgment",
+        "accept_without_cutting": "invalid \u2014 sprint is at capacity"
       }
     }
   },
-
   "difficulty_modifiers": {
-    "easy": {
-      "sprint_capacity_visible": true,
-      "budget_meter_visible": true,
-      "hint_available": true,
-      "hint_text": "Tip: Check the sprint board before responding. You might want to ask Sara a few questions first.",
-      "sara_initial_sentiment": "positive",
-      "prd_missing_fields_highlighted": true
-    },
-    "medium": {
-      "sprint_capacity_visible": false,
-      "budget_meter_visible": false,
-      "hint_available": true,
-      "hint_text": "Think about what information you need before making a commitment.",
-      "sara_initial_sentiment": "neutral",
-      "prd_missing_fields_highlighted": false
-    },
-    "hard": {
-      "sprint_capacity_visible": false,
-      "budget_meter_visible": false,
-      "hint_available": false,
-      "hint_text": null,
-      "sara_initial_sentiment": "pressured",
-      "prd_missing_fields_highlighted": false
-    }
+    "sprint_capacity_visible": false,
+    "budget_meter_visible": false,
+    "hint_available": true,
+    "hint_text": "Think about what information you need before making a commitment.",
+    "sara_initial_sentiment": "neutral",
+    "prd_missing_fields_highlighted": false
   },
-
   "scene_completion_criteria": {
     "min_branch_points_hit": 1,
-    "required_branch_points": ["bp_1"],
-    "optional_branch_points": ["bp_2"],
+    "required_branch_points": [
+      "bp_1"
+    ],
+    "optional_branch_points": [
+      "bp_2"
+    ],
     "auto_complete_after_minutes": 10
   }
 }

@@ -17,11 +17,19 @@ def init_supabase():
         and settings.supabase_key
         and not settings.supabase_key.startswith("your_")
     ):
-        from supabase import create_client
-        _supabase = create_client(settings.supabase_url, settings.supabase_key)
-        logger.info("Supabase connected")
+        try:
+            from supabase import create_client
+            _supabase = create_client(settings.supabase_url, settings.supabase_key)
+            logger.info("Supabase connected successfully")
+        except Exception as e:
+            logger.warning(
+                f"Supabase init failed ({e}). Running in memory-only mode.\n"
+                "  SUPABASE_KEY in backend/.env must be the anon/service_role JWT (starts with eyJ).\n"
+                "  Get it from: supabase.com → your project → Settings → Data API → anon key"
+            )
+            _supabase = None
     else:
-        logger.warning("Supabase not configured — running in memory-only mode")
+        logger.warning("Supabase not configured — running in memory-only (dev) mode")
 
     return _supabase
 
