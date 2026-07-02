@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import reports, sessions, users
+from app.api.v1 import auth, reports, sessions, users
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.db.client import get_supabase, init_supabase
@@ -32,6 +32,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    app.include_router(auth.router)
     app.include_router(sessions.router)
     app.include_router(users.router)
     app.include_router(reports.router)

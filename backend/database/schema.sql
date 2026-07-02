@@ -12,18 +12,44 @@ CREATE TYPE session_status AS ENUM ('active', 'paused', 'scene_complete', 'simul
 CREATE TYPE user_role        AS ENUM ('student', 'admin');
 CREATE TYPE sentiment_type   AS ENUM ('positive', 'neutral', 'negative');
 
+-- TABLE: universities
+-- Lookup table for institution names — avoids duplicate/typo'd free text
+-- ("MIT" vs "M.I.T." would otherwise be two different values) and lets us
+-- aggregate/query by institution cleanly.
+CREATE TABLE universities (
+  id    INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name  TEXT UNIQUE NOT NULL
+);
+
+-- TABLE: degrees
+-- Lookup table for degree/program names, same rationale as universities.
+CREATE TABLE degrees (
+  id    INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name  TEXT UNIQUE NOT NULL
+);
+
 -- TABLE 1: users
 -- One row per registered account
 -- admin can view all sessions and reports (mentor dashboard)
 CREATE TABLE users (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email         TEXT UNIQUE NOT NULL,
-  full_name     TEXT NOT NULL,
-  role          user_role NOT NULL DEFAULT 'student',
-  university    TEXT,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_login    TIMESTAMPTZ
+  id                      UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  email                   TEXT UNIQUE NOT NULL,
+  password_hash           TEXT NOT NULL,
+  full_name               TEXT NOT NULL,
+  role                    user_role NOT NULL DEFAULT 'student',
+  university_id           INT REFERENCES universities(id),
+  degree_id               INT REFERENCES degrees(id),
+  graduation_year         INT CHECK (graduation_year BETWEEN 1950 AND 2050),
+  core_interests          TEXT[] NOT NULL DEFAULT '{}',
+  is_active               BOOLEAN NOT NULL DEFAULT TRUE,
+  failed_login_attempts   INT NOT NULL DEFAULT 0,
+  locked_until            TIMESTAMPTZ,
+  created_at              TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_login              TIMESTAMPTZ
 );
+
+CREATE INDEX idx_users_university ON users(university_id);
+CREATE INDEX idx_users_degree     ON users(degree_id);
 
 -- Index: admin needs to list all users quickly 
 CREATE INDEX idx_users_role ON users(role);
@@ -53,6 +79,22 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER user_profiles_updated_at
   BEFORE UPDATE ON user_profiles
   FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- TABLE: refresh_tokens
+-- One row per issued refresh token (opaque random string, never stored raw)
+-- Enables logout/revocation and rotation-reuse theft detection, unlike a bare stateless JWT
+CREATE TABLE refresh_tokens (
+  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id       UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token_hash    TEXT NOT NULL,                        -- SHA-256 hash of the raw token
+  expires_at    TIMESTAMPTZ NOT NULL,
+  revoked_at    TIMESTAMPTZ,
+  replaced_by   UUID REFERENCES refresh_tokens(id),   -- rotation chain
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_hash ON refresh_tokens(token_hash);
 
 -- TABLE 3: sessions
 -- One row per simulation attempt (one student, one domain)
@@ -216,7 +258,7 @@ CREATE VIEW admin_session_overview AS
 SELECT
   u.full_name,
   u.email,
-  u.university,
+  un.name         AS university,
   s.id            AS session_id,
   s.domain,
   s.difficulty,
@@ -242,15 +284,23 @@ SELECT
   s.last_active_at
 FROM sessions s
 JOIN users u             ON u.id = s.user_id
+LEFT JOIN universities un ON un.id = u.university_id
 LEFT JOIN scores sc      ON sc.session_id = s.id
 LEFT JOIN user_profiles up ON up.user_id = s.user_id
 ORDER BY s.last_active_at DESC;
 
 -- ROW-LEVEL SECURITY (RLS)
--- Students see only their own data
--- Admins see everything
+-- NOTE: Auth is fully custom (own JWTs, not Supabase Auth), so Supabase's
+-- auth.uid() session claim is never populated for this backend. The backend
+-- connects with the service_role key (bypasses RLS) and enforces ownership
+-- checks in application code instead (see app/core/auth.py verify_session_ownership).
+-- RLS stays enabled as inert defense-in-depth against an anon-key leak, but
+-- carries no auth.uid()-based policies since those could never match.
 ALTER TABLE users                ENABLE ROW LEVEL SECURITY;
+ALTER TABLE universities         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE degrees              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE refresh_tokens       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sessions             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE stakeholder_trust    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scores               ENABLE ROW LEVEL SECURITY;
@@ -258,40 +308,6 @@ ALTER TABLE decisions_log        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE npc_memory           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE career_dna_reports   ENABLE ROW LEVEL SECURITY;
 
--- Helper: is the current user an admin?
-CREATE OR REPLACE FUNCTION is_admin()
-RETURNS BOOLEAN AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM users
-    WHERE id = auth.uid() AND role = 'admin'
-  );
-$$ LANGUAGE sql SECURITY DEFINER;
-
--- users: see own row, admins see all
-CREATE POLICY "users_own"   ON users FOR ALL USING (id = auth.uid() OR is_admin());
-
-CREATE POLICY "profiles_own"  ON user_profiles      FOR ALL USING (user_id = auth.uid() OR is_admin());
-
--- sessions: see own, admins see all
-CREATE POLICY "sessions_own" ON sessions FOR ALL
-  USING (user_id = auth.uid() OR is_admin());
-
--- All child tables: access if you own the parent session, or admin
-CREATE POLICY "trust_own"     ON stakeholder_trust FOR ALL
-  USING (session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid()) OR is_admin());
-
-CREATE POLICY "scores_own"    ON scores FOR ALL
-  USING (session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid()) OR is_admin());
-
-CREATE POLICY "decisions_own" ON decisions_log FOR ALL
-  USING (session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid()) OR is_admin());
-
-CREATE POLICY "npc_own"       ON npc_memory FOR ALL
-  USING (session_id IN (SELECT id FROM sessions WHERE user_id = auth.uid()) OR is_admin());
-
-CREATE POLICY "reports_own"   ON career_dna_reports FOR ALL
-  USING (user_id = auth.uid() OR is_admin());
-
--- SEED: create one admin account (uncomment update email before running)
--- INSERT INTO users (email, full_name, role)
--- VALUES ('mentor@folio3.com', 'Mentor Name', 'admin');
+-- SEED: create one admin account (uncomment, set a real bcrypt hash, before running)
+-- INSERT INTO users (email, password_hash, full_name, role)
+-- VALUES ('mentor@folio3.com', '<bcrypt-hash>', 'Mentor Name', 'admin');

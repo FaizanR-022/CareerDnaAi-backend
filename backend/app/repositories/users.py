@@ -1,6 +1,7 @@
 import logging
 
 from app.db.client import get_supabase
+from app.repositories.auth import get_or_create_lookup
 
 logger = logging.getLogger(__name__)
 
@@ -9,7 +10,7 @@ def save_onboarding(user_id: str, data: dict) -> None:
     supabase = get_supabase()
 
     supabase.table("users").update({
-        "university": data["university"],
+        "university_id": get_or_create_lookup("universities", data["university"]),
     }).eq("id", user_id).execute()
 
     supabase.table("user_profiles").upsert({

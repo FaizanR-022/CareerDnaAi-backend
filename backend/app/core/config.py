@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     groq_api_key: str = ""
     openrouter_api_key: str = ""
 
+    jwt_secret_key: str = ""
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440  # 24h — refresh token handles longer sessions
+    refresh_token_expire_days: int = 30
+
     model_config = {"env_file": ".env", "case_sensitive": False}
 
 
