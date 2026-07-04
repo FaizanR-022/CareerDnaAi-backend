@@ -67,6 +67,33 @@ def handle_action(session_id: str, user_action: str, current_user: dict) -> dict
     updated_state = _director.invoke(state)
     sessions_repo.save_session(session_id, updated_state)
 
+    # FIX A — include difficulty_modifiers for the current scene in every response
+    current_scene = updated_state["scenario_config"]["scenes"].get(
+        updated_state.get("current_scene_id", "scene_1"), {}
+    )
+    difficulty_modifiers = current_scene.get(
+        "difficulty_modifiers", {}
+    ).get(updated_state.get("difficulty", "medium"), {})
+
+    # FIX B — auto-trigger career fit scoring when simulation_complete is fired
+    fit_preview = None
+    for event in updated_state.get("ui_events", []):
+        if isinstance(event, dict) and event.get("type") == "simulation_complete":
+            try:
+                from app.agents.career_fit_agent import generate_fit_report_data
+                fit_preview = generate_fit_report_data(
+                    current_user["user_id"],
+                    [{
+                        "domain": updated_state["domain"],
+                        "scores": updated_state["scores"],
+                        "decisions_log": updated_state["decisions_log"],
+                        "session_id": session_id,
+                    }]
+                )
+            except Exception as e:
+                logger.error(f"Auto fit scoring failed: {e}")
+            break
+
     return {
         "session_id": session_id,
         "action_type": updated_state["action_type"],
@@ -78,7 +105,10 @@ def handle_action(session_id: str, user_action: str, current_user: dict) -> dict
         "ui_events": updated_state.get("ui_events", []),
         "stakeholder_trust": updated_state["stakeholder_trust"],
         "current_scores": updated_state["scores"],
+        "difficulty_modifiers": difficulty_modifiers,
+        "fit_preview": fit_preview,
     }
+
 
 
 def get_session_state(session_id: str) -> dict:
