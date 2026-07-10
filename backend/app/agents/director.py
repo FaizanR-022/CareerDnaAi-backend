@@ -428,7 +428,7 @@ def build_director():
 # ─── INITIAL STATE ────────────────────────────────────────────────────────────
 
 def create_initial_state(
-    session_id: str, user_id: str, domain: str = "pm", difficulty: str = "medium"
+    session_id: str, user_id: str, domain: str = "product_manager", difficulty: str = "medium"
 ) -> SimulationState:
     scenario_config = load_full_scenario_config(domain)
 

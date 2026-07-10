@@ -3,9 +3,10 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.v1 import auth, reports, sessions, users
+from app.api.v1 import auth, simulation_reports, simulations, users
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.core.response_envelope import register_response_envelope
 from app.db.client import get_supabase, init_supabase
 
 setup_logging()
@@ -17,6 +18,8 @@ def create_app() -> FastAPI:
     init_supabase()
 
     app = FastAPI(title="Career Simulator — Director API", version="2.0")
+
+    register_response_envelope(app)
 
     allowed_origins = [o for o in [
         "http://localhost:3000",
@@ -32,10 +35,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    app.include_router(auth.router)
-    app.include_router(sessions.router)
-    app.include_router(users.router)
-    app.include_router(reports.router)
+    app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(simulations.router, prefix="/api/v1")
+    app.include_router(simulation_reports.router, prefix="/api/v1")
+    app.include_router(users.router, prefix="/api/v1")
 
     @app.get("/")
     def root():

@@ -31,11 +31,11 @@ def generate_report_narrative(fit_data: dict) -> dict:
     domains_simulated = fit_data.get("domains_simulated", [])
 
     domain_labels = {
-        "pm": "Product Manager",
-        "sqa": "SQA Engineer",
+        "product_manager": "Product Manager",
+        "sqa_engineer": "SQA Engineer",
         "data_analyst": "Data Analyst",
-        "frontend": "Frontend Engineer",
-        "backend": "Backend Engineer",
+        "frontend_engineer": "Frontend Engineer",
+        "backend_engineer": "Backend Engineer",
     }
 
     prompt = f"""You are generating a Career DNA Report for a CS student who \

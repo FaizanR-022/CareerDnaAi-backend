@@ -1,14 +1,22 @@
 from functools import lru_cache
+from typing import Literal
+
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_key: str = ""
+    # Direct Postgres connection string — used only by Alembic migrations.
+    # The app's normal request path never touches this; it stays on
+    # supabase-py + supabase_url/supabase_key everywhere else.
+    database_url: str = ""
     frontend_url: str = ""
     llm_provider: str = "groq"
     groq_api_key: str = ""
     openrouter_api_key: str = ""
+
+    agent_layer_impl: Literal["mock", "real"] = "mock"
 
     jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"

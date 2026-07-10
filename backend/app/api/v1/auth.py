@@ -18,7 +18,7 @@ def _require_db() -> None:
         raise HTTPException(status_code=503, detail="Database not configured")
 
 
-@router.post("/signup", response_model=TokenResponse)
+@router.post("/signup", response_model=TokenResponse, status_code=201)
 def signup(req: SignupRequest):
     _require_db()
     return auth_service.signup(req.model_dump())

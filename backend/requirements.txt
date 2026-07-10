@@ -11,3 +11,6 @@ langgraph==0.2.55
 langchain-core>=0.3.67,<0.4.0
 langchain-groq==0.3.5
 langchain-openai==0.3.18
+alembic==1.18.5
+sqlalchemy==2.0.51
+psycopg2-binary==2.9.12

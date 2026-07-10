@@ -17,14 +17,14 @@ from __future__ import annotations
 # All weights in a profile must sum to 1.0
 
 DOMAIN_PROFILES = {
-    "pm": {
+    "product_manager": {
         "analytical_reasoning":   0.20,
         "ambiguity_tolerance":    0.30,
         "communication_clarity":  0.25,
         "attention_to_detail":    0.10,
         "decisiveness":           0.15,
     },
-    "sqa": {
+    "sqa_engineer": {
         "analytical_reasoning":   0.20,
         "ambiguity_tolerance":    0.10,
         "communication_clarity":  0.15,
@@ -38,14 +38,14 @@ DOMAIN_PROFILES = {
         "attention_to_detail":    0.20,
         "decisiveness":           0.05,
     },
-    "frontend": {
+    "frontend_engineer": {
         "analytical_reasoning":   0.15,
         "ambiguity_tolerance":    0.20,
         "communication_clarity":  0.20,
         "attention_to_detail":    0.30,
         "decisiveness":           0.15,
     },
-    "backend": {
+    "backend_engineer": {
         "analytical_reasoning":   0.30,
         "ambiguity_tolerance":    0.15,
         "communication_clarity":  0.15,
@@ -67,9 +67,9 @@ def compute_career_fit(dimension_scores: dict[str, float]) -> dict:
 
     Returns:
         {
-            "domain_fit_scores": {"pm": 74.2, "sqa": 68.1, ...},
-            "ranked_domains": ["pm", "data_analyst", ...],   # best fit first
-            "top_domain": "pm",
+            "domain_fit_scores": {"product_manager": 74.2, "sqa_engineer": 68.1, ...},
+            "ranked_domains": ["product_manager", "data_analyst", ...],   # best fit first
+            "top_domain": "product_manager",
             "confidence_level": "high" | "moderate" | "directional",
             "dimension_scores": {...},   # passed through
         }
@@ -117,7 +117,7 @@ def aggregate_scores_from_sessions(sessions_data: list[dict]) -> dict[str, float
 
     Args:
         sessions_data: list of session dicts, each with a "scores" key
-            e.g. [{"domain": "pm", "scores": {"analytical_reasoning": 72, ...}}, ...]
+            e.g. [{"domain": "product_manager", "scores": {"analytical_reasoning": 72, ...}}, ...]
 
     Returns:
         Aggregated dimension scores dict

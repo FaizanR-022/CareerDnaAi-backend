@@ -130,6 +130,87 @@ SIGNUP_DATA = {
 }
 
 
+def test_get_current_user_dev_mode_bypass(monkeypatch):
+    """No JWT_SECRET_KEY configured -> falls back to a fixed dev test user,
+    no Authorization header required at all."""
+    import asyncio
+
+    from app.core.auth import get_current_user
+
+    monkeypatch.setenv("JWT_SECRET_KEY", "")
+    get_settings.cache_clear()
+
+    user = asyncio.run(get_current_user(authorization=None))
+
+    assert user["user_id"] == "dev-user-001"
+    assert user["role"] == "student"
+    get_settings.cache_clear()
+
+
+def test_get_current_user_valid_token():
+    import asyncio
+
+    from app.core.auth import get_current_user
+    from app.core.security import create_access_token
+
+    token = create_access_token("user-42", "student@example.com", "student")
+    user = asyncio.run(get_current_user(authorization=f"Bearer {token}"))
+
+    assert user == {"user_id": "user-42", "email": "student@example.com", "role": "student"}
+
+
+def test_get_current_user_missing_header_rejected():
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from app.core.auth import get_current_user
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(get_current_user(authorization=None))
+    assert exc_info.value.status_code == 401
+
+
+def test_get_current_user_malformed_header_rejected():
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from app.core.auth import get_current_user
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(get_current_user(authorization="NotBearer sometoken"))
+    assert exc_info.value.status_code == 401
+
+
+def test_get_current_user_invalid_token_rejected():
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from app.core.auth import get_current_user
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(get_current_user(authorization="Bearer not-a-real-token"))
+    assert exc_info.value.status_code == 401
+
+
+def test_get_current_user_expired_token_rejected(monkeypatch):
+    import asyncio
+
+    from fastapi import HTTPException
+
+    from app.core.auth import get_current_user
+    from app.core.security import create_access_token
+
+    monkeypatch.setattr(get_settings(), "access_token_expire_minutes", -1)
+    token = create_access_token("user-42", "student@example.com", "student")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(get_current_user(authorization=f"Bearer {token}"))
+    assert exc_info.value.status_code == 401
+
+
 def test_verify_self_or_admin_allows_self():
     from app.core.auth import verify_self_or_admin
 
