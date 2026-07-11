@@ -13,13 +13,7 @@ from app.schemas.agent_contracts import (
     SceneContent, SceneGenerationContext,
 )
 
-# supervisor_node stays inline in graph.py — it's one line
-def supervisor_node(state: SimulationState) -> dict:
-    domain = state["domain"]
-    valid = ["product_manager","sqa_engineer","data_analyst","frontend_engineer","backend_engineer"]
-    if domain not in valid:
-        raise ValueError(f"Unknown domain: {domain}")
-    return {"active_domain": domain}
+from app.agents.nodes.supervisor import supervisor_node
 
 from app.agents.nodes.report import report_node
 
