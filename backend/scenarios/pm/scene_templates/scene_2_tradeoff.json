@@ -1,0 +1,7 @@
+{
+  "scene_number": 2,
+  "type": "sprint_tradeoff_decision",
+  "title": "The Database Migration Bottleneck",
+  "description": "A core data pipeline migration stalls right before release. The student must balance launching on schedule versus delaying to clear architecture technical debt.",
+  "context_keys": ["technical_debt", "risk_mitigation", "milestone_tracking"]
+}
