@@ -21,9 +21,7 @@ def supervisor_node(state: SimulationState) -> dict:
         raise ValueError(f"Unknown domain: {domain}")
     return {"active_domain": domain}
 
-def report_node(state: SimulationState) -> dict:
-    # TODO Shayan builds this — stub for now
-    return {"report": {"status": "report_generation_pending"}}
+from app.agents.nodes.report import report_node
 
 def route_after_career_fit(state: SimulationState):
     if state.get("should_loop_back"):
