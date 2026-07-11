@@ -5,16 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-from langgraph.graph import END, StateGraph
 
-from app.agents.director import (
-    SimulationState,
-    classify_node,
-    create_initial_state,
-    route_after_classify,
-    route_after_score,
-    scene_transition_node,
-)
 
 
 # ─── MOCK NODES ──────────────────────────────────────────────────────────────
