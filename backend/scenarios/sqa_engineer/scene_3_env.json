@@ -1,0 +1,7 @@
+{
+  "scene_number": 3,
+  "type": "multi_environment_validation",
+  "title": "Cross-Platform Layout Degradation",
+  "description": "Trace and isolate critical front-end rendering discrepancies occurring across mobile viewports while frontend developer Dan pushes to deploy the build.",
+  "context_keys": ["viewport_degradation", "css_flexbox", "developer_negotiation"]
+}
