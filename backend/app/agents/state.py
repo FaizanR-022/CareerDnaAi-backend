@@ -32,3 +32,4 @@ class SimulationState(TypedDict):
     # Graph control
     is_final_scene: bool
     loop_count: int      # prevent infinite loops
+    student_response: str

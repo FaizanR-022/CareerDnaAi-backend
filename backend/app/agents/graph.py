@@ -150,4 +150,311 @@ def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
     raise NotImplementedError("Shayan builds this — report_node")
 
 def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
-    raise NotImplementedError("Ayesha builds this next")
+    import json
+    import logging
+    from app.agents.llm import get_llm
+    from langchain_core.messages import SystemMessage
+    logger = logging.getLogger(__name__)
+
+    domain = ctx.chosen_field
+
+    FALLBACK_QUESTIONS = {
+        "product_manager": [
+            {
+                "question": "Your sprint board is full and Sara from Marketing urgently requests a new feature. What is your FIRST step?",
+                "options": [
+                    "Add it immediately to keep Sara happy",
+                    "Ask Sara what success looks like and check sprint capacity first",
+                    "Reject the request without explanation",
+                    "Escalate directly to the CEO"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "Rayan (Engineering Lead) says a feature will take 3 sprints. Sara says it must ship this sprint. What do you do?",
+                "options": [
+                    "Side with Sara — she is the business stakeholder",
+                    "Side with Rayan — never overrule engineering estimates",
+                    "Mediate: define the minimum viable scope that satisfies the core business goal",
+                    "Escalate to the VP immediately without making a decision"
+                ],
+                "correct_option_index": 2
+            },
+            {
+                "question": "What fields must a complete PRD always include?",
+                "options": [
+                    "Technical implementation details and code snippets",
+                    "Success metrics, scope, out-of-scope items, and stakeholders",
+                    "Marketing copy and pricing strategy",
+                    "Sprint ticket IDs and story points"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "A stakeholder says you committed to a full feature scope but you only committed to exploring it. What is the best response?",
+                "options": [
+                    "Agree with them — you must have miscommunicated",
+                    "Deny it happened and move on",
+                    "Clarify what was actually said without blaming them, using facts",
+                    "Escalate to legal immediately"
+                ],
+                "correct_option_index": 2
+            },
+            {
+                "question": "Why should a PM define 'out of scope' explicitly in the PRD?",
+                "options": [
+                    "To fill out the document template",
+                    "To prevent scope creep and manage stakeholder expectations clearly",
+                    "To give engineers fewer tasks",
+                    "Legal requirement for product documentation"
+                ],
+                "correct_option_index": 1
+            }
+        ],
+        "sqa_engineer": [
+            {
+                "question": "You find a checkout bug that affects only Safari mobile users. Dan says it is not a blocker. What do you do?",
+                "options": [
+                    "Accept Dan's assessment — he built it",
+                    "Provide reproduction steps and argue severity based on user impact and revenue risk",
+                    "Close the ticket — too few users affected",
+                    "Immediately escalate to the PM without discussing with Dan"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "What must a bug report always include?",
+                "options": [
+                    "Just a descriptive title",
+                    "Steps to reproduce, expected behavior, actual behavior, severity, and environment",
+                    "Your personal opinion on whether it should be fixed",
+                    "The name of the developer responsible"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "After a developer fixes a bug, you find copy-paste no longer works in a field that previously worked. This is:",
+                "options": [
+                    "A new feature request",
+                    "A regression bug introduced by the fix",
+                    "Expected behavior after a patch",
+                    "Out of scope for this test cycle"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "The spec says 'session expires after inactivity' but never defines what inactivity means. This is:",
+                "options": [
+                    "Acceptable — the developer decides implementation details",
+                    "A requirement gap that must be flagged to the PM before testing",
+                    "An intentional feature — ambiguity gives flexibility",
+                    "Out of scope for QA to question"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "Critical severity in bug triage means:",
+                "options": [
+                    "A minor UI alignment issue",
+                    "A typo visible to users",
+                    "The application crashes or a core user flow is completely blocked",
+                    "A feature enhancement request"
+                ],
+                "correct_option_index": 2
+            }
+        ],
+        "data_analyst": [
+            {
+                "question": "A key metric drops 40% overnight. What is your first step?",
+                "options": [
+                    "Immediately alert the CEO",
+                    "Check if the data pipeline or tracking code has an error before drawing conclusions",
+                    "Assume it is a real business problem and start analysis",
+                    "Wait a week to see if it recovers"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "A stakeholder says 'users who use feature X have higher retention'. What is the most important question to ask?",
+                "options": [
+                    "How many users use feature X?",
+                    "Is this correlation or causation — do highly engaged users just happen to use X?",
+                    "Which engineer built feature X?",
+                    "Should we remove X to test the impact?"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "You notice a dataset has 15% null values in a key column. What do you do?",
+                "options": [
+                    "Delete all rows with null values immediately",
+                    "Investigate why nulls exist before deciding how to handle them",
+                    "Replace all nulls with zero",
+                    "Ignore them — 85% of data is still valid"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "What makes a data visualization effective?",
+                "options": [
+                    "Using as many colors and chart types as possible",
+                    "Showing one clear insight per chart with appropriate chart type for the data",
+                    "Including all available data points regardless of relevance",
+                    "Making it look impressive for presentations"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "A VP asks you to prove that a new feature caused the sales increase. The feature launched the same week as a major marketing campaign. What do you say?",
+                "options": [
+                    "Confirm the feature caused it — the timing matches",
+                    "We cannot isolate the feature's impact without a controlled experiment; both launched simultaneously",
+                    "The marketing campaign caused it, not the feature",
+                    "Run more SQL queries until one shows the feature impact"
+                ],
+                "correct_option_index": 1
+            }
+        ],
+        "frontend_engineer": [
+            {
+                "question": "A designer's Figma mockup shows a button at 44px height but the browser renders it at 36px. What do you check first?",
+                "options": [
+                    "Report a bug to the designer",
+                    "Check CSS specificity conflicts, padding, and box-sizing settings",
+                    "Hardcode the height in pixels",
+                    "Ignore it — close enough"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "A client wants a component that 'works on all screen sizes'. What is your first clarifying question?",
+                "options": [
+                    "What screen sizes do your users actually use based on analytics?",
+                    "Is mobile more important than desktop?",
+                    "Should we build a separate mobile app?",
+                    "How many breakpoints do you want?"
+                ],
+                "correct_option_index": 0
+            },
+            {
+                "question": "A page loads slowly on mobile. What is the most likely first thing to investigate?",
+                "options": [
+                    "Server response time",
+                    "Unoptimized images, unused JavaScript, and render-blocking resources",
+                    "The user's internet connection",
+                    "CSS animations"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "What does 'semantic HTML' mean and why does it matter?",
+                "options": [
+                    "Using only div and span elements for cleaner code",
+                    "Using HTML elements that describe their meaning (nav, article, button) for accessibility and SEO",
+                    "Writing HTML comments to explain the code",
+                    "Using the latest HTML5 features regardless of browser support"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "A client asks you to add 5 new features to a landing page that is already loading slowly. What do you say?",
+                "options": [
+                    "Add all 5 immediately to keep the client happy",
+                    "Explain the performance trade-off and ask which features deliver the most value to prioritize",
+                    "Refuse all 5 — performance is non-negotiable",
+                    "Add them and fix performance later"
+                ],
+                "correct_option_index": 1
+            }
+        ],
+        "backend_engineer": [
+            {
+                "question": "An API endpoint is responding in 8 seconds instead of the expected 200ms. What is your first step?",
+                "options": [
+                    "Rewrite the entire endpoint",
+                    "Add caching everywhere immediately",
+                    "Profile the request to find the bottleneck — database query, external API call, or computation",
+                    "Increase the server resources"
+                ],
+                "correct_option_index": 2
+            },
+            {
+                "question": "A database query returns correct results but takes 30 seconds on a large table. What is the most likely fix?",
+                "options": [
+                    "Rewrite the query in a different language",
+                    "Add an index on the columns used in WHERE and JOIN clauses",
+                    "Cache the entire table in memory",
+                    "Reduce the table size by deleting old records"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "You are designing an API endpoint that multiple services will call. What is most important?",
+                "options": [
+                    "Making it as fast as possible at the expense of clarity",
+                    "Consistent response shape, clear error codes, versioning, and documentation",
+                    "Using the newest technology stack available",
+                    "Minimizing the number of endpoints"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "A production deployment fails and users are impacted. What do you do first?",
+                "options": [
+                    "Fix the bug immediately in production",
+                    "Rollback to the last working version to restore service, then debug",
+                    "Tell users to clear their cache",
+                    "Wait to see if it resolves itself"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "What is the purpose of database transactions?",
+                "options": [
+                    "To speed up database queries",
+                    "To ensure a group of operations either all succeed or all fail — maintaining data consistency",
+                    "To back up the database",
+                    "To allow multiple users to read simultaneously"
+                ],
+                "correct_option_index": 1
+            }
+        ]
+    }
+
+    llm = get_llm(model="llama-3.1-8b-instant", temperature=0.3)
+
+    prompt = f"""Generate exactly 5 multiple-choice questions testing practical {{domain.replace('_', ' ')}} workplace judgment.
+
+Rules:
+- Questions must be scenario-based, not definitions
+- Each question has exactly 4 options
+- Exactly one correct answer per question
+- Test real decision-making, not textbook knowledge
+
+Return ONLY valid JSON, no markdown, no backticks, no preamble:
+{{
+  "questions": [
+    {{
+      "question": "scenario question text",
+      "options": ["option A", "option B", "option C", "option D"],
+      "correct_option_index": <0, 1, 2, or 3>
+    }}
+  ]
+}}"""
+
+    try:
+        response = llm.invoke(
+            [SystemMessage(content=prompt)],
+            stop=["```"]
+        )
+        raw = response.content.strip().replace("```json","").replace("```","").strip()
+        result = json.loads(raw)
+        questions = result.get("questions", [])
+        if len(questions) != 5:
+            raise ValueError(f"Expected 5 questions, got {{len(questions)}}")
+        logger.info(f"MCQ generation succeeded for domain: {{domain}}")
+        return MCQGenerationResult(questions=questions)
+    except Exception as e:
+        logger.error(f"MCQ generation failed: {{e}} — using fallback")
+        fallback = FALLBACK_QUESTIONS.get(domain, FALLBACK_QUESTIONS["product_manager"])
+        return MCQGenerationResult(questions=fallback)

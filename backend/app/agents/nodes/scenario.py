@@ -43,6 +43,26 @@ def _get_npc_trust(state: SimulationState, npc_id: str) -> int:
 
 def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
     """Always returns valid SceneContent shape. Used when LLM fails."""
+    if domain == "sqa_engineer":
+        return {
+            "scene_number": scene_number,
+            "domain": domain,
+            "difficulty": difficulty,
+            "title": "Bug Investigation",
+            "narrative": "Dan has pushed the staging build for QA review. The checkout form has bugs seeded into it. Your job is to find them and file proper bug reports.",
+            "context_data": {
+                "active_npcs": ["dan_frontend_dev"],
+                "scene_type": "bug_investigation",
+            },
+            "characters": [{"id": "dan_frontend_dev", "name": "Dan", "role": "Frontend Developer", "initial_trust": 50}],
+            "messages": [{"sender": "Dan", "channel": "frontend-dev", "content": "Hey, I pushed the new staging build. Let me know if you find anything — though I think it's clean.", "time_offset_minutes": 0}],
+            "response_format": "free_text",
+            "response_choices": None,
+            "prompt_for_response": "Review the checkout form and file bug reports for any issues you find.",
+            "hint": "Check email validation, password length, and card number field." if difficulty == "easy" else None,
+            "is_final_scene": scene_number >= 4,
+            "extra": {"fallback": True},
+        }
     return {
         "scene_number": scene_number,
         "domain": domain,
@@ -88,13 +108,36 @@ def scenario_node(state: SimulationState) -> dict:
     user_profile = state.get("user_profile", {})
 
     # Get scene config
-    scene_config = PM_SCENES.get(scene_number, PM_SCENES[1])
-    active_npcs = scene_config.get("active_npcs", ["sara_khan"])
-    
+    if domain == "product_manager":
+        from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
+        scene_config = PM_SCENES.get(scene_number, PM_SCENES[1])
+        active_npcs = scene_config.get("active_npcs", ["sara_khan"])
+        npc_map = PM_NPCS
+        sprint = scene_config.get("sprint_board", {})
+    elif domain == "sqa_engineer":
+        from app.agents.domains.sqa.npcs import DAN_NPC, SQA_SCENES
+        scene_config = SQA_SCENES.get(scene_number, SQA_SCENES[1])
+        active_npcs = scene_config.get("active_npcs", ["dan_frontend_dev"])
+        npc_map = {"dan_frontend_dev": DAN_NPC}
+        sprint = {}
+    elif domain == "data_analyst":
+        from app.agents.domains.da.npcs import DA_VP_NPC, DA_SCENES
+        scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
+        active_npcs = scene_config.get("active_npcs", ["vp_analytics"])
+        npc_map = {"vp_analytics": DA_VP_NPC}
+        sprint = {}
+    else:
+        # FE, BE — fallback to PM for now
+        from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
+        scene_config = PM_SCENES.get(1)
+        active_npcs = ["sara_khan"]
+        npc_map = PM_NPCS
+        sprint = scene_config.get("sprint_board", {})
+
     # Build NPC context with trust levels
     npc_context_parts = []
     for npc_id in active_npcs:
-        npc = PM_NPCS.get(npc_id, {})
+        npc = npc_map.get(npc_id, {})
         trust = _get_npc_trust(state, npc_id)
         npc_context_parts.append(
             f"- {npc.get('name')} ({npc.get('role')}): "
@@ -111,7 +154,6 @@ def scenario_node(state: SimulationState) -> dict:
     }
 
     # HARD CONSTRAINTS — NPC cannot contradict these
-    sprint = scene_config.get("sprint_board", {})
     hard_constraints = ""
     if sprint:
         hard_constraints = f"""
@@ -125,10 +167,10 @@ HARD CONSTRAINTS FOR NPCs — NEVER CONTRADICT:
     # Context component 4 — rolling history (last 2 only)
     history_summary = _build_history_summary(history)
 
-    prompt = f"""You are generating scene {scene_number} of a Product Manager career simulation.
+    prompt = f"""You are generating scene {scene_number} of a {domain.replace('_', ' ').title()} career simulation.
 
 COMPONENT 1 — DOMAIN CONTEXT:
-This is a realistic PM workplace simulation. The student plays a Product Manager.
+This is a realistic {domain.replace('_', ' ').title()} workplace simulation. The student plays a {domain.replace('_', ' ').title()}.
 Domain: {domain} | Scene type: {scene_config['type']}
 
 COMPONENT 2 — SESSION STATE:

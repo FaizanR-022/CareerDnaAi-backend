@@ -65,61 +65,55 @@ Expected JSON:
 
 # FEW-SHOT ANCHORS — injected into SQA evaluation prompt
 SQA_FEW_SHOT = """
-=== FEW-SHOT SCORING EXAMPLES ===
+=== SQA FEW-SHOT SCORING EXAMPLES ===
 
-EXAMPLE 1 — Strong response (score ~92):
-Scene: Bug escalation to Eng Lead Dan, payment gateway timeout.
-Student response: "Dan, during our regression testing of the payment flow (v2.1.0-rc2) on staging, we identified a critical error preventing successful checkout completion. The issue occurs when users select multi-currency options under slow network profiles. 
-
-Reproduction Steps:
-1. Navigate to /checkout with a cart value > $100.
-2. Toggle currency selection to EUR or GBP.
-3. Emulate a Fast 3G connection and click 'Pay Now'.
-
-Observed Behavior: The transaction fails with a 504 Gateway Timeout.
-Console logs and traceback reference attached: [checkout-service:line-102: ConnectionTimeoutError]. 
-Impact: 100% block rate on payment processing for international test cards on staging."
+EXAMPLE 1 — Strong SQA response (score ~82):
+Scene: Dan says guest checkout bug is "a feature not a bug"
+Student: "Dan, I understand the timeline pressure. Section 1.1 of the PRD 
+requires account registration before checkout, while Section 2.4 allows guest 
+checkout — these directly contradict each other and create a database 
+consistency gap. I am keeping the Critical severity. Here are my exact 
+reproduction steps: [steps listed]. Can we get 30 minutes to review the 
+spec conflict before the release?"
 Expected JSON:
 {
-  "overall_score": 92,
+  "overall_score": 82,
   "dimension_scores": {
-    "analytical_reasoning": 95,
-    "ambiguity_tolerance": 90,
-    "communication_clarity": 94,
-    "attention_to_detail": 95,
-    "decisiveness": 86
+    "analytical_reasoning": 85,
+    "ambiguity_tolerance": 75,
+    "communication_clarity": 82,
+    "attention_to_detail": 90,
+    "decisiveness": 78
   },
-  "behavioral_flags": ["objective_evidence", "precise_reporting"],
-  "feedback_summary": "You provided excellent technical details, reproduction steps, and logs. This enables the engineering team to reproduce and fix the bug immediately.",
-  "justification": "Provides clear reproduction steps, logs, and objective severity data to Dan",
-  "npc_state_updates": [
-    {"npc_id": "dan", "trust_score": 80, "sentiment": "positive", "memory_summary": "SQA engineer filed a high-quality bug report with logs and repro steps."}
-  ],
-  "reasoning": "Student demonstrates high attention to detail and precise technical communication."
+  "behavioral_flags": ["data_backed", "stakeholder_aware"],
+  "feedback_summary": "You cited specific PRD sections and provided clear reproduction steps. Holding severity with evidence is exactly the right QA behavior under developer pushback.",
+  "justification": "Cited spec conflict with evidence, maintained severity, proposed next step.",
+  "npc_state_updates": [{"npc_id": "dan_frontend_dev", "trust_score": 60, "sentiment": "neutral", "memory_summary": "QA cited PRD conflict with evidence. Reconsidering severity."}],
+  "reasoning": "Strong analytical reasoning and attention to detail demonstrated under pressure.",
+  "extra": {}
 }
 
-EXAMPLE 2 — Weak response (score ~30):
-Scene: Bug escalation to VP of Product Zara.
-Student response: "Hi VP of Product Zara, the checkout page looks completely broken and unprofessional. Some text boxes are slightly misaligned on my mobile screen, and the checkout button looks weird. This is a massive blocker for the launch and we should halt the entire release until this is fixed immediately."
+EXAMPLE 2 — Weak SQA response (score ~22):
+Scene: Same — Dan challenges the severity rating
+Student: "ok fine maybe it's not critical"
 Expected JSON:
 {
-  "overall_score": 30,
+  "overall_score": 22,
   "dimension_scores": {
-    "analytical_reasoning": 25,
-    "ambiguity_tolerance": 20,
-    "communication_clarity": 40,
-    "attention_to_detail": 30,
-    "decisiveness": 35
+    "analytical_reasoning": 20,
+    "ambiguity_tolerance": 25,
+    "communication_clarity": 30,
+    "attention_to_detail": 15,
+    "decisiveness": 18
   },
-  "behavioral_flags": ["inappropriate_escalation", "subjective_reporting", "lack_of_technical_evidence"],
-  "feedback_summary": "You escalated a minor alignment issue directly to executive leadership without technical evidence or reproduction steps. This creates unnecessary panic.",
-  "justification": "Escalates minor UI alignment issues to executives without technical evidence",
-  "npc_state_updates": [
-    {"npc_id": "zara_malik", "trust_score": 40, "sentiment": "negative", "memory_summary": "SQA escalated minor UI issue directly to executive level without developer alignment."}
-  ],
-  "reasoning": "Student failed to follow standard triage channels and relied on subjective reports."
+  "behavioral_flags": ["accepted_blindly", "vague"],
+  "feedback_summary": "You backed down without any evidence or argument. A good QA engineer defends severity ratings with data and PRD references, not social pressure.",
+  "justification": "Caved to developer pushback with no evidence or reasoning.",
+  "npc_state_updates": [{"npc_id": "dan_frontend_dev", "trust_score": 65, "sentiment": "positive", "memory_summary": "QA backed down on severity. Dan's pushback worked."}],
+  "reasoning": "Critical failure in decisiveness and analytical reasoning — accepted challenge without defending with evidence.",
+  "extra": {}
 }
-=== END FEW-SHOT EXAMPLES ===
+=== END SQA FEW-SHOT ===
 """
 
 def _fallback_evaluation() -> dict:
@@ -172,7 +166,7 @@ def evaluation_node(state: SimulationState) -> dict:
         history_context = "This is the first response — no prior history."
 
     # Choose few-shot anchors dynamically based on domain
-    few_shot = SQA_FEW_SHOT if domain == "sqa_engineer" else PM_FEW_SHOT
+    few_shot = PM_FEW_SHOT if domain == "product_manager" else SQA_FEW_SHOT if domain == "sqa_engineer" else PM_FEW_SHOT
 
     # Scoring thresholds explanation for the LLM
     thresholds = """
