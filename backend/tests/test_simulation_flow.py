@@ -35,7 +35,7 @@ def _walk_to_completion(api_client, auth_headers, domain="product_manager"):
     return session_id
 
 
-def test_full_simulation_walkthrough(api_client, auth_headers):
+def test_full_simulation_walkthrough(api_client, auth_headers, require_simulation_schema):
     session_id = _walk_to_completion(api_client, auth_headers)
 
     r = api_client.get(f"/api/v1/simulations/{session_id}", headers=auth_headers)
@@ -52,7 +52,7 @@ def test_full_simulation_walkthrough(api_client, auth_headers):
     assert any(s["id"] == session_id for s in r.json()["data"])
 
 
-def test_submit_response_rejects_wrong_scene_number(api_client, auth_headers):
+def test_submit_response_rejects_wrong_scene_number(api_client, auth_headers, require_simulation_schema):
     r = api_client.post(
         "/api/v1/simulations", headers=auth_headers,
         json={"domain": "product_manager", "difficulty": "medium"},
@@ -67,7 +67,7 @@ def test_submit_response_rejects_wrong_scene_number(api_client, auth_headers):
     assert r.json()["success"] is False
 
 
-def test_double_submit_rejected(api_client, auth_headers):
+def test_double_submit_rejected(api_client, auth_headers, require_simulation_schema):
     r = api_client.post(
         "/api/v1/simulations", headers=auth_headers,
         json={"domain": "product_manager", "difficulty": "medium"},
@@ -86,7 +86,7 @@ def test_double_submit_rejected(api_client, auth_headers):
     assert r2.status_code == 409
 
 
-def test_next_scene_before_evaluation_rejected(api_client, auth_headers):
+def test_next_scene_before_evaluation_rejected(api_client, auth_headers, require_simulation_schema):
     r = api_client.post(
         "/api/v1/simulations", headers=auth_headers,
         json={"domain": "product_manager", "difficulty": "medium"},
@@ -97,14 +97,14 @@ def test_next_scene_before_evaluation_rejected(api_client, auth_headers):
     assert r.status_code == 409
 
 
-def test_next_scene_after_completion_rejected(api_client, auth_headers):
+def test_next_scene_after_completion_rejected(api_client, auth_headers, require_simulation_schema):
     session_id = _walk_to_completion(api_client, auth_headers)
 
     r = api_client.post(f"/api/v1/simulations/{session_id}/scenes", headers=auth_headers)
     assert r.status_code == 409
 
 
-def test_cross_user_access_forbidden(api_client, auth_headers, e2e_user):
+def test_cross_user_access_forbidden(api_client, auth_headers, e2e_user, require_simulation_schema):
     r = api_client.post(
         "/api/v1/simulations", headers=auth_headers,
         json={"domain": "product_manager", "difficulty": "medium"},
@@ -135,7 +135,7 @@ def test_unauthenticated_request_rejected(api_client):
 
 # ─── report generation ──────────────────────────────────────────────────
 
-def test_generate_report_on_incomplete_session_returns_400(api_client, auth_headers):
+def test_generate_report_on_incomplete_session_returns_400(api_client, auth_headers, require_simulation_schema):
     r = api_client.post(
         "/api/v1/simulations", headers=auth_headers,
         json={"domain": "product_manager", "difficulty": "medium"},
@@ -149,7 +149,7 @@ def test_generate_report_on_incomplete_session_returns_400(api_client, auth_head
     assert r.json()["success"] is False
 
 
-def test_generate_report_on_nonexistent_session_returns_404(api_client, auth_headers):
+def test_generate_report_on_nonexistent_session_returns_404(api_client, auth_headers, require_simulation_schema):
     r = api_client.post(
         "/api/v1/reports", headers=auth_headers,
         json={"simulation_session_ids": ["00000000-0000-0000-0000-000000000000"]},
@@ -157,7 +157,7 @@ def test_generate_report_on_nonexistent_session_returns_404(api_client, auth_hea
     assert r.status_code == 404
 
 
-def test_full_report_generation_flow(api_client, auth_headers):
+def test_full_report_generation_flow(api_client, auth_headers, require_simulation_schema):
     session_id = _walk_to_completion(api_client, auth_headers)
 
     r = api_client.post(
@@ -180,7 +180,7 @@ def test_full_report_generation_flow(api_client, auth_headers):
     assert r.json()["data"]["id"] == report_id
 
 
-def test_report_evidence_citations_point_at_real_evaluation_ids(api_client, auth_headers):
+def test_report_evidence_citations_point_at_real_evaluation_ids(api_client, auth_headers, require_simulation_schema):
     session_id = _walk_to_completion(api_client, auth_headers)
 
     from app.repositories import scene_evaluations, simulation_scenes

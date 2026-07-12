@@ -1,0 +1,7 @@
+{
+  "scene_number": 2,
+  "type": "data_investigation",
+  "title": "Corrupted Data Pipeline Remediation",
+  "description": "Clean, structure, and inspect a highly degraded warehouse ingestion stream filled with missing payload strings and mismatched timestamps.",
+  "context_keys": ["data_sanitization", "pipeline_auditing", "null_value_handling"]
+}

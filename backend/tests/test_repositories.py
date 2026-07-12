@@ -120,7 +120,7 @@ def test_deactivate_user(e2e_user):
     assert auth_repo.get_user_by_id(user["id"])["is_active"] is False
 
 
-def test_save_onboarding_persists_profile(e2e_user):
+def test_save_onboarding_persists_profile(e2e_user, require_simulation_schema):
     user = e2e_user["user"]
     users_repo.save_onboarding(user["id"], {
         "university": f"Onboard Uni {uuid.uuid4().hex[:8]}",
@@ -133,7 +133,7 @@ def test_save_onboarding_persists_profile(e2e_user):
 
 # ─── new-flow repositories, against real Supabase (not memory mode) ──────
 
-def test_simulation_sessions_e2e(e2e_user):
+def test_simulation_sessions_e2e(e2e_user, require_simulation_schema):
     user_id = e2e_user["user"]["id"]
     session_id = str(uuid.uuid4())
     row = simulation_sessions.create_session(session_id, user_id, "product_manager", "medium")
@@ -152,7 +152,7 @@ def test_simulation_sessions_e2e(e2e_user):
     assert any(s["id"] == session_id for s in mine)
 
 
-def test_simulation_scenes_and_evaluations_e2e(e2e_user):
+def test_simulation_scenes_and_evaluations_e2e(e2e_user, require_simulation_schema):
     user_id = e2e_user["user"]["id"]
     session_id = str(uuid.uuid4())
     simulation_sessions.create_session(session_id, user_id, "product_manager", "medium")
@@ -181,7 +181,7 @@ def test_simulation_scenes_and_evaluations_e2e(e2e_user):
     assert len(evals) == 1 and evals[0]["evaluated_at"] is not None
 
 
-def test_npc_state_e2e(e2e_user):
+def test_npc_state_e2e(e2e_user, require_simulation_schema):
     user_id = e2e_user["user"]["id"]
     session_id = str(uuid.uuid4())
     simulation_sessions.create_session(session_id, user_id, "product_manager", "medium")
@@ -218,7 +218,7 @@ def test_career_dna_reports_e2e(e2e_user):
     assert any(r["id"] == report_id for r in mine)
 
 
-def test_user_profile_self_rating_e2e(e2e_user):
+def test_user_profile_self_rating_e2e(e2e_user, require_simulation_schema):
     user_id = e2e_user["user"]["id"]
     # no profile row exists until onboarding runs
     assert user_profile.get_self_rating(user_id, "product_manager") is None

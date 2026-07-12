@@ -1,0 +1,7 @@
+{
+  "scene_number": 2,
+  "type": "test_case_writing",
+  "title": "Regression Strategy for Core Ledger Systems",
+  "description": "Draft complete regression execution paths for a new financial ledger while identifying a hidden unindexed database concurrency vulnerability.",
+  "context_keys": ["regression_mapping", "boundary_testing", "concurrency_checks"]
+}
