@@ -421,21 +421,89 @@ def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
         ]
     }
 
+    DOMAIN_MCQ_TOPICS = {
+        "product_manager": {
+            "focus": "sprint management, stakeholder communication, PRD writing, scope decisions, trade-off analysis",
+            "context": "You are testing whether a CS student understands real Product Manager responsibilities at a tech startup",
+            "example_topics": [
+                "How to respond when sprint is full and stakeholder requests new feature",
+                "Deciding which ticket to cut when capacity is over",
+                "Defining success metrics before committing to scope",
+                "Communicating decisions to engineering vs marketing stakeholders",
+                "MVP vs full feature scope decisions"
+            ]
+        },
+        "sqa_engineer": {
+            "focus": "bug severity classification, test case writing, regression testing, requirement gap analysis, cross-browser testing",
+            "context": "You are testing whether a CS student understands real Software QA Engineer responsibilities",
+            "example_topics": [
+                "Classifying bug severity (critical vs major vs minor)",
+                "Writing structured test cases with steps, expected, actual results",
+                "Handling developer pushback on bug severity",
+                "Finding requirement gaps before testing starts",
+                "Cross-environment testing prioritisation"
+            ]
+        },
+        "data_analyst": {
+            "focus": "metric anomaly investigation, correlation vs causation, data cleaning, root cause analysis, presenting insights",
+            "context": "You are testing whether a CS student understands real Data Analyst responsibilities",
+            "example_topics": [
+                "First step when a key metric drops unexpectedly",
+                "Distinguishing tracking errors from real business problems",
+                "Handling confounding variables in analysis",
+                "Communicating uncertainty in data findings",
+                "Recommending action based on incomplete data"
+            ]
+        },
+        "frontend_engineer": {
+            "focus": "CSS debugging, responsive design, performance optimisation, accessibility, browser compatibility",
+            "context": "You are testing whether a CS student understands real Frontend Engineer responsibilities",
+            "example_topics": [
+                "Diagnosing layout issues across screen sizes",
+                "CSS specificity and inheritance conflicts",
+                "Image and asset optimisation for page speed",
+                "Semantic HTML and accessibility",
+                "Handling impossible client requests professionally"
+            ]
+        },
+        "backend_engineer": {
+            "focus": "API design, database query optimisation, incident response, debugging slow endpoints, system architecture",
+            "context": "You are testing whether a CS student understands real Backend Engineer responsibilities",
+            "example_topics": [
+                "Diagnosing a slow API endpoint",
+                "Database indexing decisions",
+                "Rollback vs hotfix in a production incident",
+                "REST API design principles",
+                "Database transaction and consistency"
+            ]
+        }
+    }
+
     llm = get_llm(model="llama-3.1-8b-instant", temperature=0.3)
 
-    prompt = f"""Generate exactly 5 multiple-choice questions testing practical {{domain.replace('_', ' ')}} workplace judgment.
+    domain_config = DOMAIN_MCQ_TOPICS.get(domain, DOMAIN_MCQ_TOPICS["product_manager"])
+    
+    prompt = f"""Generate exactly 5 multiple-choice questions to assess a CS student's practical knowledge for a {domain.replace('_', ' ')} role at a tech startup.
 
-Rules:
-- Questions must be scenario-based, not definitions
-- Each question has exactly 4 options
-- Exactly one correct answer per question
-- Test real decision-making, not textbook knowledge
+CONTEXT: {domain_config['context']}
 
-Return ONLY valid JSON, no markdown, no backticks, no preamble:
+FOCUS AREAS (questions must come from these topics):
+{chr(10).join(f'- {t}' for t in domain_config['example_topics'])}
+
+RULES:
+- Every question must be a realistic workplace scenario, not a definition or theory question
+- Wrong: "What does MOSCOW stand for?" (definition)  
+- Right: "Sprint is full, stakeholder requests new feature. What do you do first?" (scenario)
+- Each question has exactly 4 options (A, B, C, D)
+- Exactly one correct option per question
+- Questions must have clear correct answers that a competent professional would know
+- Difficulty: medium — not too easy, not trick questions
+
+Return ONLY valid JSON, no markdown, no backticks:
 {{
   "questions": [
     {{
-      "question": "scenario question text",
+      "question": "realistic workplace scenario question",
       "options": ["option A", "option B", "option C", "option D"],
       "correct_option_index": <0, 1, 2, or 3>
     }}
