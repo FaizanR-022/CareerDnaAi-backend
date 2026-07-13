@@ -33,3 +33,8 @@ class SimulationState(TypedDict):
     is_final_scene: bool
     loop_count: int      # prevent infinite loops
     student_response: str
+
+    # NPC trust scores — keyed by npc_id (e.g. "dan_frontend_dev")
+    # Updated by evaluation_node trust modifier logic
+    npc_trust: Optional[dict]
+

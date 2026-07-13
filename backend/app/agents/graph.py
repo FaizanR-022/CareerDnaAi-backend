@@ -1,4 +1,6 @@
 import logging
+import os
+
 logger = logging.getLogger(__name__)
 
 from langgraph.graph import StateGraph, START, END
@@ -14,7 +16,6 @@ from app.schemas.agent_contracts import (
 )
 
 from app.agents.nodes.supervisor import supervisor_node
-
 from app.agents.nodes.report import report_node
 
 def route_after_career_fit(state: SimulationState):
@@ -58,25 +59,47 @@ eval_builder.add_conditional_edges(
 eval_builder.add_edge("scenario_node", END)
 eval_builder.add_edge("report_node", END)
 
-# CHECKPOINTER setup
-def get_checkpointer():
-    from app.core.config import get_settings
-    settings = get_settings()
-    from langgraph.checkpoint.postgres import PostgresSaver
-    # Handle settings.database_url which might be a MultiHostUrl
-    db_url = str(settings.database_url)
-    return PostgresSaver.from_conn_string(db_url)
+
+# ─── CHECKPOINTER SETUP ────────────────────────────────────────────────────────
+# Primary: PostgresSaver using SUPABASE_CONN_STRING connection string.
+# Fallback: MemorySaver when the env var or DB is unavailable (dev / CI).
+
+def _build_graphs_with_postgres(conn_str: str):
+    """Compile both graphs using a PostgresSaver connection pool."""
+    # Lazy import — package is optional (langgraph-checkpoint-postgres)
+    from langgraph.checkpoint.postgres import PostgresSaver  # noqa: PLC0415
+    with PostgresSaver.from_conn_string(conn_str) as saver:
+        # Run DB migrations for internal checkpointer tables automatically
+        saver.setup()
+        sg = scene_builder.compile(checkpointer=saver)
+        eg = eval_builder.compile(checkpointer=saver)
+    return sg, eg
+
+
+def _build_graphs_with_memory():
+    """Fallback: compile both graphs using in-process MemorySaver."""
+    from langgraph.checkpoint.memory import MemorySaver
+    saver = MemorySaver()
+    sg = scene_builder.compile(checkpointer=saver)
+    eg = eval_builder.compile(checkpointer=saver)
+    return sg, eg
+
+
+supabase_conn_str: str | None = os.environ.get("SUPABASE_CONN_STRING")
 
 try:
-    checkpointer = get_checkpointer()
-    checkpointer.setup() # Initialize tables if they don't exist
+    if not supabase_conn_str:
+        raise ValueError("SUPABASE_CONN_STRING environment variable is not set.")
+    scene_graph, eval_graph = _build_graphs_with_postgres(supabase_conn_str)
+    logger.info("PostgresSaver checkpointer initialised successfully.")
 except Exception as e:
-    logger.warning(f"PostgresCheckpointer unavailable: {e} — using MemorySaver")
-    from langgraph.checkpoint.memory import MemorySaver
-    checkpointer = MemorySaver()
+    logger.warning(
+        f"PostgresSaver unavailable ({e}) — falling back to MemorySaver. "
+        "Set SUPABASE_CONN_STRING in .env for persistent checkpointing."
+    )
+    scene_graph, eval_graph = _build_graphs_with_memory()
 
-scene_graph = scene_builder.compile(checkpointer=checkpointer)
-eval_graph = eval_builder.compile(checkpointer=checkpointer)
+
 
 # --- Entry points called by agent_client.py ---
 

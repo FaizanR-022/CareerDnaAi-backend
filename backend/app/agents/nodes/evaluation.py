@@ -139,18 +139,17 @@ def evaluation_node(state: SimulationState) -> dict:
     """
     LangGraph node — scores student response for current scene.
     Called by: graph on evaluate_response invocation.
-    Returns partial state update with current_evaluation and latest_score.
+    Returns partial state update with current_evaluation, latest_score,
+    and (for SQA) updated npc_trust dict.
     """
     domain = state.get("domain", "product_manager")
     difficulty = state.get("difficulty", "medium")
     scene = state.get("current_scene", {})
     history = state.get("history", [])
-    
+
     # Get the student's response from state
-    # It comes in via the history — the last entry has no evaluation yet
-    # Or it comes via a separate field if you set it in the invoking code
     student_response = state.get("student_response", "")
-    
+
     if not student_response:
         logger.warning("evaluation_node called with no student_response in state")
         return {"current_evaluation": _fallback_evaluation(), "latest_score": 50.0}
@@ -160,13 +159,21 @@ def evaluation_node(state: SimulationState) -> dict:
     evaluated = [h for h in history if h.get("evaluation")]
     if evaluated:
         last_two = evaluated[-2:]
-        parts = [f"Scene {h['scene'].get('scene_number','?')}: score {h['evaluation'].get('overall_score','?')}/100" for h in last_two]
+        parts = [
+            f"Scene {h['scene'].get('scene_number', '?')}: "
+            f"score {h['evaluation'].get('overall_score', '?')}/100"
+            for h in last_two
+        ]
         history_context = "Prior performance: " + " | ".join(parts)
     else:
         history_context = "This is the first response — no prior history."
 
     # Choose few-shot anchors dynamically based on domain
-    few_shot = PM_FEW_SHOT if domain == "product_manager" else SQA_FEW_SHOT if domain == "sqa_engineer" else PM_FEW_SHOT
+    few_shot = (
+        PM_FEW_SHOT if domain == "product_manager"
+        else SQA_FEW_SHOT if domain == "sqa_engineer"
+        else PM_FEW_SHOT
+    )
 
     # Scoring thresholds explanation for the LLM
     thresholds = """
@@ -223,7 +230,7 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
 }}"""
 
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.1)
-    
+
     try:
         response = call_llm_with_retry(
             llm,
@@ -234,9 +241,95 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
         raw = raw.replace("```json", "").replace("```", "").strip()
         evaluation = json.loads(raw)
         latest_score = float(evaluation.get("overall_score", 50.0))
-        logger.info(f"evaluation_node → {latest_score}/100 | flags: {evaluation.get('behavioral_flags')}")
-        return {"current_evaluation": evaluation, "latest_score": latest_score}
+        logger.info(
+            f"evaluation_node → {latest_score}/100 | "
+            f"flags: {evaluation.get('behavioral_flags')}"
+        )
+
+        # ── SQA TRUST MODIFIER INJECTION ─────────────────────────────────────
+        # Programmatically adjust Dan's trust based on student behaviour signals.
+        # These modifiers run AFTER LLM scoring so they override NPC sentiment
+        # in state without altering the scored evaluation payload.
+        state_updates: dict = {
+            "current_evaluation": evaluation,
+            "latest_score": latest_score,
+        }
+
+        if domain == "sqa_engineer":
+            response_lower = student_response.lower()
+
+            # Current Dan trust baseline (from state or history)
+            current_trust: int = _get_sqa_dan_trust(state)
+
+            # Modifier 1 — +10 if student provides console traces, log dumps,
+            # or copy-pasteable reproduction steps (evidence-based behaviour)
+            evidence_signals = [
+                "console", "traceback", "stack trace", "log", "error:",
+                "reproduce", "reproduction steps", "steps to reproduce",
+                "copy-paste", "output:", "exception", "stderr", "stdout",
+            ]
+            if any(sig in response_lower for sig in evidence_signals):
+                current_trust = min(100, current_trust + 10)
+                logger.info(
+                    "SQA trust modifier: +10 (console/trace evidence provided) "
+                    f"→ dan_trust={current_trust}"
+                )
+                evaluation.setdefault("behavioral_flags", [])
+                if "evidence_provided" not in evaluation["behavioral_flags"]:
+                    evaluation["behavioral_flags"].append("evidence_provided")
+
+            # Modifier 2 — -15 if student escalates to PM/management/exec
+            # without first providing evidence to Dan
+            escalation_signals = [
+                "escalate to", "tell the pm", "notify the pm",
+                "report to management", "cc the ceo", "inform the vp",
+                "loop in the product manager", "go to the manager",
+                "raise with leadership", "flag to the cto",
+            ]
+            has_evidence = any(sig in response_lower for sig in evidence_signals)
+            if (
+                any(sig in response_lower for sig in escalation_signals)
+                and not has_evidence
+            ):
+                current_trust = max(0, current_trust - 15)
+                logger.info(
+                    "SQA trust modifier: -15 (escalated to management without evidence) "
+                    f"→ dan_trust={current_trust}"
+                )
+                evaluation.setdefault("behavioral_flags", [])
+                if "premature_escalation" not in evaluation["behavioral_flags"]:
+                    evaluation["behavioral_flags"].append("premature_escalation")
+
+            # Persist updated trust into npc_trust state dict
+            existing_npc_trust: dict = dict(state.get("npc_trust") or {})
+            existing_npc_trust["dan_frontend_dev"] = current_trust
+            state_updates["npc_trust"] = existing_npc_trust
+
+        return state_updates
+
     except Exception as e:
-        logger.error(f"evaluation_node error: {e} | raw: {response.content[:200] if 'response' in dir() else 'no response'}")
+        logger.error(
+            f"evaluation_node error: {e} | "
+            f"raw: {response.content[:200] if 'response' in dir() else 'no response'}"
+        )
         fallback = _fallback_evaluation()
         return {"current_evaluation": fallback, "latest_score": 50.0}
+
+
+def _get_sqa_dan_trust(state: SimulationState) -> int:
+    """
+    Retrieve Dan's current trust level from state, with history fallback.
+    Used only by the SQA trust modifier block in evaluation_node.
+    """
+    npc_trust: dict | None = state.get("npc_trust")
+    if npc_trust and "dan_frontend_dev" in npc_trust:
+        return int(npc_trust["dan_frontend_dev"])
+    # Fall back to last npc_state_updates from history
+    history = state.get("history", [])
+    for entry in reversed(history):
+        evaluation = entry.get("evaluation", {}) or {}
+        for upd in evaluation.get("npc_state_updates", []):
+            if upd.get("npc_id") == "dan_frontend_dev":
+                return int(upd.get("trust_score", 50))
+    return 50
+
