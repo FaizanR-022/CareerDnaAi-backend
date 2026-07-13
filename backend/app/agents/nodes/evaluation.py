@@ -7,7 +7,7 @@ Never raises exceptions.
 """
 import json
 import logging
-from app.agents.llm import get_llm
+from app.agents.llm import get_llm, call_llm_with_retry
 from app.agents.state import SimulationState
 from langchain_core.messages import SystemMessage
 
@@ -225,7 +225,8 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.1)
     
     try:
-        response = llm.invoke(
+        response = call_llm_with_retry(
+            llm,
             [SystemMessage(content=prompt)],
             stop=["```"]  # STOP SEQUENCE — strips markdown backticks
         )

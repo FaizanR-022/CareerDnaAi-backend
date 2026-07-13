@@ -6,7 +6,7 @@ Never raises exceptions — always returns fallback.
 """
 import json
 import logging
-from app.agents.llm import get_llm
+from app.agents.llm import get_llm, call_llm_with_retry
 from app.agents.state import SimulationState
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
@@ -224,7 +224,8 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
     
     try:
-        response = llm.invoke(
+        response = call_llm_with_retry(
+            llm,
             [SystemMessage(content=prompt)],
             stop=["```"]  # STOP SEQUENCE — strips markdown backticks
         )
