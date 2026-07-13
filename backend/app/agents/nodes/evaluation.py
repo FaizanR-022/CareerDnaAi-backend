@@ -212,6 +212,54 @@ Expected JSON:
 === END BE FEW-SHOT ===
 """
 
+# FEW-SHOT ANCHORS — injected into DA evaluation prompt
+DA_FEW_SHOT = """
+=== DA FEW-SHOT SCORING EXAMPLES ===
+
+EXAMPLE 1 — Strong DA response (score ~86):
+Scene: Weekly active users dropped 38% overnight. VP Analytics Jordan flags it.
+Student: "Jordan, I've checked the analytics tracking script status and verified that the ingestion pipeline runs completed successfully without exceptions. Before assuming a real drop, I want to perform a cohort check on yesterday's release parameters. Let's verify if the client-side analytics snippet got dropped or misconfigured first."
+Expected JSON:
+{
+  "overall_score": 86,
+  "dimension_scores": {
+    "analytical_reasoning": 90,
+    "ambiguity_tolerance": 85,
+    "communication_clarity": 88,
+    "attention_to_detail": 85,
+    "decisiveness": 80
+  },
+  "behavioral_flags": ["data_backed", "clarification_sought"],
+  "feedback_summary": "You correctly checked the tracking code and data pipeline integrity first instead of jumping to business conclusions.",
+  "justification": "Systematically validated pipeline and tracking setup before assuming business anomalies.",
+  "npc_state_updates": [{"npc_id": "vp_analytics", "trust_score": 60, "sentiment": "neutral", "memory_summary": "DA checked pipeline metrics and tracking status before jumping to conclusions."}],
+  "reasoning": "Excellent ambiguity tolerance and analytical reasoning on initial anomaly validation.",
+  "extra": {}
+}
+
+EXAMPLE 2 — Weak DA response (score ~25):
+Scene: Same scene.
+Student: "This is a disaster! Let's tell the product manager to launch an immediate marketing campaign to get users back."
+Expected JSON:
+{
+  "overall_score": 25,
+  "dimension_scores": {
+    "analytical_reasoning": 15,
+    "ambiguity_tolerance": 20,
+    "communication_clarity": 40,
+    "attention_to_detail": 20,
+    "decisiveness": 80
+  },
+  "behavioral_flags": ["accepted_blindly", "rushed"],
+  "feedback_summary": "You panicked and immediately recommended a marketing intervention without validating whether the telemetry anomaly was a real business drop or a technical tracking error.",
+  "justification": "Committed blindly to business action without checking data integrity.",
+  "npc_state_updates": [{"npc_id": "vp_analytics", "trust_score": 45, "sentiment": "negative", "memory_summary": "DA proposed marketing interventions without verifying data reliability."}],
+  "reasoning": "High decisiveness but catastrophic analytical reasoning and ambiguity tolerance.",
+  "extra": {}
+}
+=== END DA FEW-SHOT ===
+"""
+
 
 def _fallback_evaluation() -> dict:
     """Returns valid EvaluationResult shape when LLM fails."""
@@ -271,6 +319,7 @@ def evaluation_node(state: SimulationState) -> dict:
         else SQA_FEW_SHOT if domain == "sqa_engineer"
         else FE_FEW_SHOT if domain == "frontend_engineer"
         else BE_FEW_SHOT if domain == "backend_engineer"
+        else DA_FEW_SHOT if domain == "data_analyst"
         else PM_FEW_SHOT
     )
 
