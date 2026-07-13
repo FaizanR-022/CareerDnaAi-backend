@@ -170,7 +170,67 @@ def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
     return EvaluationResult(**evaluation_dict)
 
 def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
-    raise NotImplementedError("Shayan builds this — report_node")
+    """
+    Constructs the FitReportResult by aggregating student history, calculating fit vectors,
+    and invoking the LLM qualitative evaluator.
+    """
+    from app.agents.career_fit_agent import generate_fit_report_data
+    from app.agents.nodes.report import report_node
+
+    # Convert summaries list back to sessions database shapes for generate_fit_report_data
+    sessions_payload = []
+    history_entries = []
+    for session in ctx.sessions:
+        decisions_log = []
+        for scored in session.evaluations:
+            res = scored.result
+            decisions_log.append({
+                "id": scored.scene_evaluation_id,
+                "dimension_scores": res.dimension_scores,
+            })
+            # Also keep a flat state history structure to feed the report LLM node
+            history_entries.append({
+                "scene": {
+                    "scene_number": scored.scene_number,
+                    "title": f"Scene {scored.scene_number}",
+                },
+                "evaluation": {
+                    "scene_evaluation_id": scored.scene_evaluation_id,
+                    "overall_score": res.overall_score,
+                    "dimension_scores": res.dimension_scores,
+                    "feedback_summary": res.feedback_summary,
+                    "npc_state_updates": res.npc_state_updates,
+                }
+            })
+
+        sessions_payload.append({
+            "domain": session.domain,
+            "scores": {
+                # Map averages from session evaluation logs
+                dim: sum(e.result.dimension_scores.get(dim, 50.0) for e in session.evaluations) / max(len(session.evaluations), 1)
+                for dim in ["analytical_reasoning", "ambiguity_tolerance", "communication_clarity", "attention_to_detail", "decisiveness"]
+            },
+            "decisions_log": decisions_log
+        })
+
+    # Get fit result using the deterministic aggregation engine
+    fit_data = generate_fit_report_data(ctx.user_id, sessions_payload)
+
+    # Invoke report LLM node to get the qualitative narration block
+    state_mock = {"history": history_entries}
+    llm_report = report_node(state_mock).get("report", {})
+
+    return FitReportResult(
+        domain_fit_scores=fit_data["domain_fit_scores"],
+        ranked_domains=fit_data["ranked_domains"],
+        top_recommendation=fit_data["top_domain"],
+        confidence_level=fit_data["confidence_level"],
+        evidence_citations=fit_data["evidence_citations"],
+        summary_narrative=llm_report.get("summary_narrative", "Baseline capabilites match requirements."),
+        strengths=llm_report.get("strengths", []),
+        growth_areas=llm_report.get("growth_areas", []),
+    )
+
 
 def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
     import json
