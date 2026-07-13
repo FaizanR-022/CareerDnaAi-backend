@@ -56,26 +56,6 @@ def _load_sqa_blueprint(scene_number: int) -> dict[str, Any]:
         return {}
 
 
-def _load_fe_blueprint(scene_number: int) -> dict[str, Any]:
-    """Load a static FE challenge blueprint from disk. Returns {} on failure."""
-    filename = _FE_SCENE_FILES.get(scene_number, "scene_1.json")
-    path = _SCENARIOS_ROOT / "frontend_engineer" / filename
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        logger.warning(f"_load_fe_blueprint: could not load {path}: {exc}")
-        return {}
-
-
-def _load_be_blueprint(scene_number: int) -> dict[str, Any]:
-    """Load a static BE challenge blueprint from disk. Returns {} on failure."""
-    filename = _BE_SCENE_FILES.get(scene_number, "scene_1.json")
-    path = _SCENARIOS_ROOT / "backend_engineer" / filename
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        logger.warning(f"_load_be_blueprint: could not load {path}: {exc}")
-        return {}
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -211,6 +191,35 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
             "response_choices": None,
             "prompt_for_response": "Determine the root cause and hotfix strategy.",
             "hint": "Check query indexes and investigate execution plans." if difficulty == "easy" else None,
+            "is_final_scene": scene_number >= 4,
+            "extra": {"fallback": True},
+        }
+    elif domain == "data_analyst":
+        return {
+            "scene_number": scene_number,
+            "domain": domain,
+            "difficulty": difficulty,
+            "title": "Data Anomaly",
+            "narrative": "The VP of Analytics has noticed a sudden 15% drop in weekly active users (WAU) on the dashboard.",
+            "context_data": {
+                "active_npcs": ["vp_analytics"],
+                "scene_type": "anomaly_investigation",
+            },
+            "characters": [
+                {"id": "vp_analytics", "name": "VP Analytics", "role": "VP", "initial_trust": 50}
+            ],
+            "messages": [
+                {
+                    "sender": "VP Analytics",
+                    "channel": "slack",
+                    "content": "Hey, the WAU dashboard is showing a 15% drop since Tuesday. Is the data pipeline broken or is this a real drop?",
+                    "time_offset_minutes": 0,
+                }
+            ],
+            "response_format": "free_text",
+            "response_choices": None,
+            "prompt_for_response": "How do you investigate this anomaly?",
+            "hint": "Check if there were any recent tracking changes or seasonal trends." if difficulty == "easy" else None,
             "is_final_scene": scene_number >= 4,
             "extra": {"fallback": True},
         }
@@ -374,156 +383,6 @@ def scenario_node(state: SimulationState) -> dict:
     history: list = state.get("history", [])
     user_profile: dict = state.get("user_profile", {})
 
-    # ── FE domain: static blueprint ──────────────────────────────────────────
-    if domain == "frontend_engineer":
-        blueprint = _load_fe_blueprint(scene_number)
-        history_summary = _build_history_summary(history[-2:])
-
-        prompt = f"""You are generating scene {scene_number} of 4 for a Frontend Engineer career simulation.
-
-COMPONENT 1 — DOMAIN CONTEXT:
-Domain: frontend_engineer | Scene type: {blueprint.get('type', 'design_discrepancy_review')}
-Blueprint title: {blueprint.get('title', 'FE Scene')}
-Blueprint description: {blueprint.get('description', '')}
-
-COMPONENT 2 — SESSION STATE:
-Difficulty: {difficulty}
-Scene number: {scene_number} of 4
-
-COMPONENT 3 — NPC:
-NPC: {blueprint.get('npc', 'Client')}
-
-COMPONENT 4 — RECENT HISTORY (last 2 turns only):
-{history_summary}
-
-Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamble:
-{{
-  "scene_number": {scene_number},
-  "domain": "frontend_engineer",
-  "difficulty": "{difficulty}",
-  "title": "{blueprint.get('title', 'FE Scene')}",
-  "narrative": "2-3 sentence description of the frontend layout and design dispute",
-  "context_data": {{
-    "sprint_board": null,
-    "active_npcs": ["client_product_owner"],
-    "scene_type": "{blueprint.get('type', 'design_discrepancy_review')}"
-  }},
-  "characters": [
-    {{"id": "client_product_owner", "name": "Client", "role": "Product Owner", "initial_trust": 50}}
-  ],
-  "messages": [
-    {{
-      "sender": "Client",
-      "channel": "chat",
-      "content": "Client opening message demanding pixel-perfection or complaining about layout discrepancies",
-      "time_offset_minutes": 0
-    }}
-  ],
-  "response_format": "free_text",
-  "response_choices": null,
-  "prompt_for_response": "How do you respond?",
-  "hint": {"null" if difficulty != "easy" else '"Review spacing, alignment, and responsiveness specs."'},
-  "is_final_scene": {"true" if scene_number >= 4 else "false"},
-  "extra": {{}}
-}}"""
-        llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
-        try:
-            response = call_llm_with_retry(
-                llm,
-                [SystemMessage(content=prompt)],
-                stop=["```"],
-            )
-            raw = response.content.strip()
-            raw = raw.replace("```json", "").replace("```", "").strip()
-            scene = json.loads(raw)
-            logger.info(f"scenario_node → FE scene {scene_number} generated")
-            return {
-                "current_scene": scene,
-                "is_final_scene": scene.get("is_final_scene", False),
-            }
-        except Exception as e:
-            logger.error(f"scenario_node FE LLM error: {e}")
-            fallback = _fallback_scene(scene_number, domain, difficulty)
-            return {
-                "current_scene": fallback,
-                "is_final_scene": fallback["is_final_scene"],
-            }
-
-    # ── BE domain: static blueprint ──────────────────────────────────────────
-    if domain == "backend_engineer":
-        blueprint = _load_be_blueprint(scene_number)
-        history_summary = _build_history_summary(history[-2:])
-
-        prompt = f"""You are generating scene {scene_number} of 4 for a Backend Engineer career simulation.
-
-COMPONENT 1 — DOMAIN CONTEXT:
-Domain: backend_engineer | Scene type: {blueprint.get('type', 'incident_response')}
-Blueprint title: {blueprint.get('title', 'BE Scene')}
-Blueprint description: {blueprint.get('description', '')}
-
-COMPONENT 2 — SESSION STATE:
-Difficulty: {difficulty}
-Scene number: {scene_number} of 4
-
-COMPONENT 3 — NPC:
-NPC: {blueprint.get('npc', 'Team Lead')}
-
-COMPONENT 4 — RECENT HISTORY (last 2 turns only):
-{history_summary}
-
-Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamble:
-{{
-  "scene_number": {scene_number},
-  "domain": "backend_engineer",
-  "difficulty": "{difficulty}",
-  "title": "{blueprint.get('title', 'BE Scene')}",
-  "narrative": "2-3 sentence description of the system incident, performance bug, or design choice",
-  "context_data": {{
-    "sprint_board": null,
-    "active_npcs": ["team_lead"],
-    "scene_type": "{blueprint.get('type', 'incident_response')}"
-  }},
-  "characters": [
-    {{"id": "team_lead", "name": "Team Lead", "role": "Senior Engineer", "initial_trust": 50}}
-  ],
-  "messages": [
-    {{
-      "sender": "Team Lead",
-      "channel": "slack",
-      "content": "Opening message from Team Lead describing the performance bottleneck or system failure",
-      "time_offset_minutes": 0
-    }}
-  ],
-  "response_format": "free_text",
-  "response_choices": null,
-  "prompt_for_response": "How do you handle this backend scenario?",
-  "hint": {"null" if difficulty != "easy" else '"Review query indexes, concurrency models, or caching layers."'},
-  "is_final_scene": {"true" if scene_number >= 4 else "false"},
-  "extra": {{}}
-}}"""
-        llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
-        try:
-            response = call_llm_with_retry(
-                llm,
-                [SystemMessage(content=prompt)],
-                stop=["```"],
-            )
-            raw = response.content.strip()
-            raw = raw.replace("```json", "").replace("```", "").strip()
-            scene = json.loads(raw)
-            logger.info(f"scenario_node → BE scene {scene_number} generated")
-            return {
-                "current_scene": scene,
-                "is_final_scene": scene.get("is_final_scene", False),
-            }
-        except Exception as e:
-            logger.error(f"scenario_node BE LLM error: {e}")
-            fallback = _fallback_scene(scene_number, domain, difficulty)
-            return {
-                "current_scene": fallback,
-                "is_final_scene": fallback["is_final_scene"],
-            }
-
     # ── SQA domain: static blueprint + Dan persona ────────────────────────────
     if domain == "sqa_engineer":
         from app.agents.domains.sqa.npcs import DAN_NPC, SQA_SCENES
@@ -580,6 +439,18 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
         scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
         active_npcs = scene_config.get("active_npcs", ["vp_analytics"])
         npc_map = {"vp_analytics": DA_VP_NPC}
+        sprint = {}
+    elif domain == "frontend_engineer":
+        from app.agents.domains.fe.npcs import FE_CLIENT_NPC, FE_SCENES
+        scene_config = FE_SCENES.get(scene_number, FE_SCENES[1])
+        active_npcs = scene_config.get("active_npcs", ["fe_client"])
+        npc_map = {"fe_client": FE_CLIENT_NPC}
+        sprint = {}
+    elif domain == "backend_engineer":
+        from app.agents.domains.be.npcs import BE_TEAM_LEAD_NPC, BE_SCENES
+        scene_config = BE_SCENES.get(scene_number, BE_SCENES[1])
+        active_npcs = scene_config.get("active_npcs", ["be_team_lead"])
+        npc_map = {"be_team_lead": BE_TEAM_LEAD_NPC}
         sprint = {}
     else:
         # FE, BE — fallback to PM for now
@@ -710,201 +581,3 @@ def _get_npc_trust(state: SimulationState, npc_id: str) -> int:
                 return update.get("trust_score", 50)
     return 50
 
-def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
-    """Always returns valid SceneContent shape. Used when LLM fails."""
-    if domain == "sqa_engineer":
-        return {
-            "scene_number": scene_number,
-            "domain": domain,
-            "difficulty": difficulty,
-            "title": "Bug Investigation",
-            "narrative": "Dan has pushed the staging build for QA review. The checkout form has bugs seeded into it. Your job is to find them and file proper bug reports.",
-            "context_data": {
-                "active_npcs": ["dan_frontend_dev"],
-                "scene_type": "bug_investigation",
-            },
-            "characters": [{"id": "dan_frontend_dev", "name": "Dan", "role": "Frontend Developer", "initial_trust": 50}],
-            "messages": [{"sender": "Dan", "channel": "frontend-dev", "content": "Hey, I pushed the new staging build. Let me know if you find anything — though I think it's clean.", "time_offset_minutes": 0}],
-            "response_format": "free_text",
-            "response_choices": None,
-            "prompt_for_response": "Review the checkout form and file bug reports for any issues you find.",
-            "hint": "Check email validation, password length, and card number field." if difficulty == "easy" else None,
-            "is_final_scene": scene_number >= 4,
-            "extra": {"fallback": True},
-        }
-    return {
-        "scene_number": scene_number,
-        "domain": domain,
-        "difficulty": difficulty,
-        "title": "Feature Request",
-        "narrative": (
-            "Sara Khan from Marketing has sent you a voice memo. "
-            "She's requesting a referral feature in the current sprint."
-        ),
-        "context_data": {
-            "sprint_board": PM_SCENES[1]["sprint_board"],
-            "active_npcs": ["sara_khan"],
-        },
-        "characters": [
-            {"id": "sara_khan", "name": "Sara Khan", "role": "Head of Marketing", "initial_trust": 50}
-        ],
-        "messages": [
-            {
-                "sender": "Sara Khan",
-                "channel": "developer",
-                "content": "Hey! We really need the referral feature in this sprint. Can we make it happen?",
-                "time_offset_minutes": 0,
-            }
-        ],
-        "response_format": "free_text",
-        "response_choices": None,
-        "prompt_for_response": "How do you respond to Sara's request?",
-        "hint": "Think about what information you need before making any commitment." if difficulty == "easy" else None,
-        "is_final_scene": scene_number >= 4,
-        "extra": {"fallback": True},
-    }
-
-def scenario_node(state: SimulationState) -> dict:
-    """
-    LangGraph node — generates next PM scene.
-    Called by: graph on generate_scene invocation.
-    Returns partial state update with current_scene.
-    """
-    domain = state.get("domain", "product_manager")
-    difficulty = state.get("difficulty", "medium")
-    scene_number = state.get("scene_number", 1)
-    history = state.get("history", [])
-    user_profile = state.get("user_profile", {})
-
-    # Get scene config
-    if domain == "product_manager":
-        from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
-        scene_config = PM_SCENES.get(scene_number, PM_SCENES[1])
-        active_npcs = scene_config.get("active_npcs", ["sara_khan"])
-        npc_map = PM_NPCS
-        sprint = scene_config.get("sprint_board", {})
-    elif domain == "sqa_engineer":
-        from app.agents.domains.sqa.npcs import DAN_NPC, SQA_SCENES
-        scene_config = SQA_SCENES.get(scene_number, SQA_SCENES[1])
-        active_npcs = scene_config.get("active_npcs", ["dan_frontend_dev"])
-        npc_map = {"dan_frontend_dev": DAN_NPC}
-        sprint = {}
-    elif domain == "data_analyst":
-        from app.agents.domains.da.npcs import DA_VP_NPC, DA_SCENES
-        scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
-        active_npcs = scene_config.get("active_npcs", ["vp_analytics"])
-        npc_map = {"vp_analytics": DA_VP_NPC}
-        sprint = {}
-    else:
-        # FE, BE — fallback to PM for now
-        from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
-        scene_config = PM_SCENES.get(1)
-        active_npcs = ["sara_khan"]
-        npc_map = PM_NPCS
-        sprint = scene_config.get("sprint_board", {})
-
-    # Build NPC context with trust levels
-    npc_context_parts = []
-    for npc_id in active_npcs:
-        npc = npc_map.get(npc_id, {})
-        trust = _get_npc_trust(state, npc_id)
-        npc_context_parts.append(
-            f"- {npc.get('name')} ({npc.get('role')}): "
-            f"trust {trust}/100, goal: {npc.get('goal')}, "
-            f"vocabulary: {npc.get('vocabulary')}"
-        )
-    npc_context = "\n".join(npc_context_parts)
-
-    # Difficulty hint config
-    hint_config = {
-        "easy": "Include a helpful hint for the student.",
-        "medium": "Do not include a hint.",
-        "hard": "Do not include a hint. Increase NPC pressure.",
-    }
-
-    # HARD CONSTRAINTS — NPC cannot contradict these
-    hard_constraints = ""
-    if sprint:
-        hard_constraints = f"""
-HARD CONSTRAINTS FOR NPCs — NEVER CONTRADICT:
-- Sprint has {sprint.get('capacity', 6)} ticket slots maximum
-- Sprint has {sprint.get('available', 0)} spare capacity
-- NPCs do NOT know the student is being assessed
-- NPCs do NOT know this is a simulation
-"""
-
-    # Context component 4 — rolling history (last 2 only)
-    history_summary = _build_history_summary(history)
-
-    prompt = f"""You are generating scene {scene_number} of a {domain.replace('_', ' ').title()} career simulation.
-
-COMPONENT 1 — DOMAIN CONTEXT:
-This is a realistic {domain.replace('_', ' ').title()} workplace simulation. The student plays a {domain.replace('_', ' ').title()}.
-Domain: {domain} | Scene type: {scene_config['type']}
-
-COMPONENT 2 — SESSION STATE:
-Difficulty: {difficulty}
-Scene number: {scene_number} of 4
-Student interests: {user_profile.get('core_interests', [])}
-Active NPCs and trust levels:
-{npc_context}
-
-COMPONENT 3 — TECHNICAL CONSTRAINTS:
-{scene_config['context']}
-{hard_constraints}
-
-COMPONENT 4 — RECENT HISTORY:
-{history_summary}
-
-DIFFICULTY INSTRUCTIONS:
-{hint_config.get(difficulty, 'No hint.')}
-
-Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamble:
-{{
-  "scene_number": {scene_number},
-  "domain": "{domain}",
-  "difficulty": "{difficulty}",
-  "title": "short scene title",
-  "narrative": "2-3 sentence description of the situation",
-  "context_data": {{
-    "sprint_board": {json.dumps(sprint) if sprint else "null"},
-    "active_npcs": {json.dumps(active_npcs)},
-    "scene_type": "{scene_config['type']}"
-  }},
-  "characters": [
-    {{"id": "sara_khan", "name": "Sara Khan", "role": "Head of Marketing", "initial_trust": 50}}
-  ],
-  "messages": [
-    {{
-      "sender": "Sara Khan",
-      "channel": "developer", 
-      "content": "Sara's opening message — in character, urgent, references the referral feature",
-      "time_offset_minutes": 0
-    }}
-  ],
-  "response_format": "free_text",
-  "response_choices": null,
-  "prompt_for_response": "What do you do?",
-  "hint": {"null" if difficulty != "easy" else '"Think about what information you need before committing."'},
-  "is_final_scene": {"true" if scene_number >= 4 else "false"},
-  "extra": {{}}
-}}"""
-
-    llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
-    
-    try:
-        response = call_llm_with_retry(
-            llm,
-            [SystemMessage(content=prompt)],
-            stop=["```"]  # STOP SEQUENCE — strips markdown backticks
-        )
-        raw = response.content.strip()
-        # Also strip manually in case stop sequence didn't catch it
-        raw = raw.replace("```json", "").replace("```", "").strip()
-        scene = json.loads(raw)
-        logger.info(f"scenario_node → scene {scene_number} generated for {domain}")
-        return {"current_scene": scene, "is_final_scene": scene.get("is_final_scene", False)}
-    except Exception as e:
-        logger.error(f"scenario_node LLM error: {e}")
-        fallback = _fallback_scene(scene_number, domain, difficulty)
-        return {"current_scene": fallback, "is_final_scene": fallback["is_final_scene"]}
