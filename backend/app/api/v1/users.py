@@ -52,7 +52,19 @@ def update_my_profile(req: UpdateUserRequest, current_user: dict = Depends(get_c
     }
 
 
+
+@router.delete("/users/me")
+def delete_my_profile(current_user: dict = Depends(get_current_user)):
+    user_id = current_user["user_id"]
+    if not get_supabase():
+        return {"status": "deactivated (mocked)", "user_id": user_id}
+    users_repo.deactivate_user(user_id)
+    auth_repo.revoke_all_user_tokens(user_id)
+    return {"status": "deactivated", "user_id": user_id}
+
+
 @router.get("/users/{user_id}", response_model=UserResponse)
+
 def get_user(user_id: str, current_user: dict = Depends(get_current_user)):
     verify_self_or_admin(user_id, current_user)
     return auth_service.get_user_profile(user_id)
