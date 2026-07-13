@@ -30,6 +30,20 @@ _SQA_SCENE_FILES: dict[int, str] = {
     4: "scene_4_gap.json",
 }
 
+_FE_SCENE_FILES: dict[int, str] = {
+    1: "scene_1.json",
+    2: "scene_2.json",
+    3: "scene_3.json",
+    4: "scene_4.json",
+}
+
+_BE_SCENE_FILES: dict[int, str] = {
+    1: "scene_1.json",
+    2: "scene_2.json",
+    3: "scene_3.json",
+    4: "scene_4.json",
+}
+
 
 def _load_sqa_blueprint(scene_number: int) -> dict[str, Any]:
     """Load a static SQA challenge blueprint from disk. Returns {} on failure."""
@@ -39,6 +53,28 @@ def _load_sqa_blueprint(scene_number: int) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         logger.warning(f"_load_sqa_blueprint: could not load {path}: {exc}")
+        return {}
+
+
+def _load_fe_blueprint(scene_number: int) -> dict[str, Any]:
+    """Load a static FE challenge blueprint from disk. Returns {} on failure."""
+    filename = _FE_SCENE_FILES.get(scene_number, "scene_1.json")
+    path = _SCENARIOS_ROOT / "frontend_engineer" / filename
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning(f"_load_fe_blueprint: could not load {path}: {exc}")
+        return {}
+
+
+def _load_be_blueprint(scene_number: int) -> dict[str, Any]:
+    """Load a static BE challenge blueprint from disk. Returns {} on failure."""
+    filename = _BE_SCENE_FILES.get(scene_number, "scene_1.json")
+    path = _SCENARIOS_ROOT / "backend_engineer" / filename
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning(f"_load_be_blueprint: could not load {path}: {exc}")
         return {}
 
 
@@ -117,6 +153,64 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
                 "Check email validation, password length, and card number field."
                 if difficulty == "easy" else None
             ),
+            "is_final_scene": scene_number >= 4,
+            "extra": {"fallback": True},
+        }
+    elif domain == "frontend_engineer":
+        return {
+            "scene_number": scene_number,
+            "domain": domain,
+            "difficulty": difficulty,
+            "title": "Figma vs Browser Audit",
+            "narrative": "A product design layout discrepancy has been identified. Review the Figma file specs and align with browser implementation details.",
+            "context_data": {
+                "active_npcs": ["client_product_owner"],
+                "scene_type": "design_discrepancy_review",
+            },
+            "characters": [
+                {"id": "client_product_owner", "name": "Client", "role": "Product Owner", "initial_trust": 50}
+            ],
+            "messages": [
+                {
+                    "sender": "Client",
+                    "channel": "chat",
+                    "content": "Hey, the rendering is off compared to the Figma mockups. Can you fix the button sizes?",
+                    "time_offset_minutes": 0,
+                }
+            ],
+            "response_format": "free_text",
+            "response_choices": None,
+            "prompt_for_response": "Identify and prioritize the discrepancies for the client.",
+            "hint": "Focus on dimensions, typography and responsive layout behaviors." if difficulty == "easy" else None,
+            "is_final_scene": scene_number >= 4,
+            "extra": {"fallback": True},
+        }
+    elif domain == "backend_engineer":
+        return {
+            "scene_number": scene_number,
+            "domain": domain,
+            "difficulty": difficulty,
+            "title": "Slow Endpoint Incident",
+            "narrative": "Production monitors flag a sudden p95 latency spike on the order retrieval endpoint.",
+            "context_data": {
+                "active_npcs": ["team_lead"],
+                "scene_type": "incident_response",
+            },
+            "characters": [
+                {"id": "team_lead", "name": "Team Lead", "role": "Senior Engineer", "initial_trust": 50}
+            ],
+            "messages": [
+                {
+                    "sender": "Team Lead",
+                    "channel": "slack",
+                    "content": "The order endpoint is timing out. Can you inspect logs and explain why the DB query is taking 8s?",
+                    "time_offset_minutes": 0,
+                }
+            ],
+            "response_format": "free_text",
+            "response_choices": None,
+            "prompt_for_response": "Determine the root cause and hotfix strategy.",
+            "hint": "Check query indexes and investigate execution plans." if difficulty == "easy" else None,
             "is_final_scene": scene_number >= 4,
             "extra": {"fallback": True},
         }
@@ -279,6 +373,156 @@ def scenario_node(state: SimulationState) -> dict:
     scene_number: int = state.get("scene_number", 1)
     history: list = state.get("history", [])
     user_profile: dict = state.get("user_profile", {})
+
+    # ── FE domain: static blueprint ──────────────────────────────────────────
+    if domain == "frontend_engineer":
+        blueprint = _load_fe_blueprint(scene_number)
+        history_summary = _build_history_summary(history[-2:])
+
+        prompt = f"""You are generating scene {scene_number} of 4 for a Frontend Engineer career simulation.
+
+COMPONENT 1 — DOMAIN CONTEXT:
+Domain: frontend_engineer | Scene type: {blueprint.get('type', 'design_discrepancy_review')}
+Blueprint title: {blueprint.get('title', 'FE Scene')}
+Blueprint description: {blueprint.get('description', '')}
+
+COMPONENT 2 — SESSION STATE:
+Difficulty: {difficulty}
+Scene number: {scene_number} of 4
+
+COMPONENT 3 — NPC:
+NPC: {blueprint.get('npc', 'Client')}
+
+COMPONENT 4 — RECENT HISTORY (last 2 turns only):
+{history_summary}
+
+Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamble:
+{{
+  "scene_number": {scene_number},
+  "domain": "frontend_engineer",
+  "difficulty": "{difficulty}",
+  "title": "{blueprint.get('title', 'FE Scene')}",
+  "narrative": "2-3 sentence description of the frontend layout and design dispute",
+  "context_data": {{
+    "sprint_board": null,
+    "active_npcs": ["client_product_owner"],
+    "scene_type": "{blueprint.get('type', 'design_discrepancy_review')}"
+  }},
+  "characters": [
+    {{"id": "client_product_owner", "name": "Client", "role": "Product Owner", "initial_trust": 50}}
+  ],
+  "messages": [
+    {{
+      "sender": "Client",
+      "channel": "chat",
+      "content": "Client opening message demanding pixel-perfection or complaining about layout discrepancies",
+      "time_offset_minutes": 0
+    }}
+  ],
+  "response_format": "free_text",
+  "response_choices": null,
+  "prompt_for_response": "How do you respond?",
+  "hint": {"null" if difficulty != "easy" else '"Review spacing, alignment, and responsiveness specs."'},
+  "is_final_scene": {"true" if scene_number >= 4 else "false"},
+  "extra": {{}}
+}}"""
+        llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
+        try:
+            response = call_llm_with_retry(
+                llm,
+                [SystemMessage(content=prompt)],
+                stop=["```"],
+            )
+            raw = response.content.strip()
+            raw = raw.replace("```json", "").replace("```", "").strip()
+            scene = json.loads(raw)
+            logger.info(f"scenario_node → FE scene {scene_number} generated")
+            return {
+                "current_scene": scene,
+                "is_final_scene": scene.get("is_final_scene", False),
+            }
+        except Exception as e:
+            logger.error(f"scenario_node FE LLM error: {e}")
+            fallback = _fallback_scene(scene_number, domain, difficulty)
+            return {
+                "current_scene": fallback,
+                "is_final_scene": fallback["is_final_scene"],
+            }
+
+    # ── BE domain: static blueprint ──────────────────────────────────────────
+    if domain == "backend_engineer":
+        blueprint = _load_be_blueprint(scene_number)
+        history_summary = _build_history_summary(history[-2:])
+
+        prompt = f"""You are generating scene {scene_number} of 4 for a Backend Engineer career simulation.
+
+COMPONENT 1 — DOMAIN CONTEXT:
+Domain: backend_engineer | Scene type: {blueprint.get('type', 'incident_response')}
+Blueprint title: {blueprint.get('title', 'BE Scene')}
+Blueprint description: {blueprint.get('description', '')}
+
+COMPONENT 2 — SESSION STATE:
+Difficulty: {difficulty}
+Scene number: {scene_number} of 4
+
+COMPONENT 3 — NPC:
+NPC: {blueprint.get('npc', 'Team Lead')}
+
+COMPONENT 4 — RECENT HISTORY (last 2 turns only):
+{history_summary}
+
+Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamble:
+{{
+  "scene_number": {scene_number},
+  "domain": "backend_engineer",
+  "difficulty": "{difficulty}",
+  "title": "{blueprint.get('title', 'BE Scene')}",
+  "narrative": "2-3 sentence description of the system incident, performance bug, or design choice",
+  "context_data": {{
+    "sprint_board": null,
+    "active_npcs": ["team_lead"],
+    "scene_type": "{blueprint.get('type', 'incident_response')}"
+  }},
+  "characters": [
+    {{"id": "team_lead", "name": "Team Lead", "role": "Senior Engineer", "initial_trust": 50}}
+  ],
+  "messages": [
+    {{
+      "sender": "Team Lead",
+      "channel": "slack",
+      "content": "Opening message from Team Lead describing the performance bottleneck or system failure",
+      "time_offset_minutes": 0
+    }}
+  ],
+  "response_format": "free_text",
+  "response_choices": null,
+  "prompt_for_response": "How do you handle this backend scenario?",
+  "hint": {"null" if difficulty != "easy" else '"Review query indexes, concurrency models, or caching layers."'},
+  "is_final_scene": {"true" if scene_number >= 4 else "false"},
+  "extra": {{}}
+}}"""
+        llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
+        try:
+            response = call_llm_with_retry(
+                llm,
+                [SystemMessage(content=prompt)],
+                stop=["```"],
+            )
+            raw = response.content.strip()
+            raw = raw.replace("```json", "").replace("```", "").strip()
+            scene = json.loads(raw)
+            logger.info(f"scenario_node → BE scene {scene_number} generated")
+            return {
+                "current_scene": scene,
+                "is_final_scene": scene.get("is_final_scene", False),
+            }
+        except Exception as e:
+            logger.error(f"scenario_node BE LLM error: {e}")
+            fallback = _fallback_scene(scene_number, domain, difficulty)
+            return {
+                "current_scene": fallback,
+                "is_final_scene": fallback["is_final_scene"],
+            }
 
     # ── SQA domain: static blueprint + Dan persona ────────────────────────────
     if domain == "sqa_engineer":

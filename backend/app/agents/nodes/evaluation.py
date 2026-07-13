@@ -116,6 +116,103 @@ Expected JSON:
 === END SQA FEW-SHOT ===
 """
 
+# FEW-SHOT ANCHORS — injected into FE evaluation prompt
+FE_FEW_SHOT = """
+=== FE FEW-SHOT SCORING EXAMPLES ===
+
+EXAMPLE 1 — Strong FE response (score ~85):
+Scene: Client complains about button sizing rendering discrepancy (44px in Figma vs 36px in browser).
+Student: "I've reviewed the issue. In Chrome, the button height is set to 36px because of a padding mismatch in the base CSS class. I've corrected it to 44px to match Figma, verified that it stays properly centered on mobile viewports, and checked that the hit area complies with the target size guidelines for touch interactions. Here is the updated responsive layout behavior."
+Expected JSON:
+{
+  "overall_score": 85,
+  "dimension_scores": {
+    "analytical_reasoning": 85,
+    "ambiguity_tolerance": 80,
+    "communication_clarity": 90,
+    "attention_to_detail": 90,
+    "decisiveness": 80
+  },
+  "behavioral_flags": ["data_backed", "stakeholder_aware"],
+  "feedback_summary": "You successfully audited the discrepancy, identified the root CSS padding mismatch, and implemented the design request while ensuring touch target accessibility.",
+  "justification": "Correctly diagnosed layout padding issue and verified responsive behaviors.",
+  "npc_state_updates": [{"npc_id": "client_product_owner", "trust_score": 60, "sentiment": "neutral", "memory_summary": "FE fixed the rendering mismatch and verified responsiveness."}],
+  "reasoning": "Strong attention to layout detail and clear design-review reasoning.",
+  "extra": {}
+}
+
+EXAMPLE 2 — Weak FE response (score ~30):
+Scene: Same scene.
+Student: "Oh, ok. I'll just change the height directly to 44px. Let's see if it works."
+Expected JSON:
+{
+  "overall_score": 30,
+  "dimension_scores": {
+    "analytical_reasoning": 25,
+    "ambiguity_tolerance": 40,
+    "communication_clarity": 35,
+    "attention_to_detail": 20,
+    "decisiveness": 30
+  },
+  "behavioral_flags": ["rushed", "vague"],
+  "feedback_summary": "You applied a quick fix without investigating why the discrepancy occurred or checking if it breaks the responsive grid and accessibility.",
+  "justification": "Applied hardcoded styling adjustment without holistic review.",
+  "npc_state_updates": [{"npc_id": "client_product_owner", "trust_score": 50, "sentiment": "neutral", "memory_summary": "FE hardcoded layout height change without further details."}],
+  "reasoning": "Rushed response lacking technical diagnosis and design-review rigour.",
+  "extra": {}
+}
+=== END FE FEW-SHOT ===
+"""
+
+# FEW-SHOT ANCHORS — injected into BE evaluation prompt
+BE_FEW_SHOT = """
+=== BE FEW-SHOT SCORING EXAMPLES ===
+
+EXAMPLE 1 — Strong BE response (score ~88):
+Scene: GET /api/orders endpoint latency spike to 8 seconds.
+Student: "I executed an EXPLAIN ANALYZE on the slow query. The orders table has 2.3M rows and the planner is performing a sequential scan because of a missing composite index on (user_id, status, created_at) which was introduced in the latest filter rollout. I will deploy a migration to add this composite index as a hotfix rather than rolling back, since the filtering logic is correct. I will monitor p95 latency post-deployment."
+Expected JSON:
+{
+  "overall_score": 88,
+  "dimension_scores": {
+    "analytical_reasoning": 92,
+    "ambiguity_tolerance": 85,
+    "communication_clarity": 88,
+    "attention_to_detail": 90,
+    "decisiveness": 85
+  },
+  "behavioral_flags": ["data_backed", "strategic_alignment"],
+  "feedback_summary": "You Methodically diagnosed the database scan bottleneck, correctly avoided a premature code rollback, and proposed the correct composite index hotfix.",
+  "justification": "Diagnosed missing index using query planner and proposed hotfix.",
+  "npc_state_updates": [{"npc_id": "team_lead", "trust_score": 65, "sentiment": "positive", "memory_summary": "BE diagnosed sequential scan root cause and hotfixed with index."}],
+  "reasoning": "Excellent analytical and system diagnostics under incident-response pressure.",
+  "extra": {}
+}
+
+EXAMPLE 2 — Weak BE response (score ~25):
+Scene: Same scene.
+Student: "It is taking too long, let's just rollback the entire release from 2 hours ago."
+Expected JSON:
+{
+  "overall_score": 25,
+  "dimension_scores": {
+    "analytical_reasoning": 20,
+    "ambiguity_tolerance": 30,
+    "communication_clarity": 40,
+    "attention_to_detail": 15,
+    "decisiveness": 20
+  },
+  "behavioral_flags": ["rushed", "escalated"],
+  "feedback_summary": "You immediately jumped to rollback the release without checking logs, database execution plans, or identifying the root cause.",
+  "justification": "Recommended full rollback trap instead of hotfixing index.",
+  "npc_state_updates": [{"npc_id": "team_lead", "trust_score": 45, "sentiment": "negative", "memory_summary": "BE prematurely suggested system rollback without log analysis."}],
+  "reasoning": "Low scores in analytical reasoning due to ignoring logs and database execution plans.",
+  "extra": {}
+}
+=== END BE FEW-SHOT ===
+"""
+
+
 def _fallback_evaluation() -> dict:
     """Returns valid EvaluationResult shape when LLM fails."""
     return {
@@ -172,6 +269,8 @@ def evaluation_node(state: SimulationState) -> dict:
     few_shot = (
         PM_FEW_SHOT if domain == "product_manager"
         else SQA_FEW_SHOT if domain == "sqa_engineer"
+        else FE_FEW_SHOT if domain == "frontend_engineer"
+        else BE_FEW_SHOT if domain == "backend_engineer"
         else PM_FEW_SHOT
     )
 
