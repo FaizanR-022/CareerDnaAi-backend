@@ -23,37 +23,7 @@ logger = logging.getLogger(__name__)
 
 _SCENARIOS_ROOT = pathlib.Path(__file__).parents[4] / "scenarios"
 
-_SQA_SCENE_FILES: dict[int, str] = {
-    1: "scene_1_bug.json",
-    2: "scene_2_testcase.json",
-    3: "scene_3_env.json",
-    4: "scene_4_gap.json",
-}
 
-_FE_SCENE_FILES: dict[int, str] = {
-    1: "scene_1.json",
-    2: "scene_2.json",
-    3: "scene_3.json",
-    4: "scene_4.json",
-}
-
-_BE_SCENE_FILES: dict[int, str] = {
-    1: "scene_1.json",
-    2: "scene_2.json",
-    3: "scene_3.json",
-    4: "scene_4.json",
-}
-
-
-def _load_sqa_blueprint(scene_number: int) -> dict[str, Any]:
-    """Load a static SQA challenge blueprint from disk. Returns {} on failure."""
-    filename = _SQA_SCENE_FILES.get(scene_number, _SQA_SCENE_FILES[1])
-    path = _SCENARIOS_ROOT / "sqa_engineer" / filename
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        logger.warning(f"_load_sqa_blueprint: could not load {path}: {exc}")
-        return {}
 
 
 
@@ -267,14 +237,12 @@ def _build_sqa_prompt(
     difficulty: str,
     history_summary: str,
     dan_trust: int,
-    blueprint: dict,
     scene_config: dict,
 ) -> str:
     """
     Build the SQA-specific LLM system prompt.
 
     Integrates:
-    - Static blueprint metadata (title, description, context_keys)
     - Dan's full persona constraints from domains/sqa/npcs.py
     - Restricted vocabulary list
     - Trust-conditioned tone
@@ -300,9 +268,9 @@ def _build_sqa_prompt(
         else "Be terse, defensive, and dismissive of QA concerns."
     )
 
-    blueprint_desc = blueprint.get("description", scene_config.get("context", ""))
-    blueprint_title = blueprint.get("title", f"SQA Scene {scene_number}")
-    context_keys = blueprint.get("context_keys", [])
+    blueprint_desc = scene_config.get("description", scene_config.get("context", ""))
+    blueprint_title = scene_config.get("title", f"SQA Scene {scene_number}")
+    context_keys = scene_config.get("context_keys", [])
 
     hint_config = {
         "easy": "Include a helpful hint for the student.",
@@ -389,7 +357,6 @@ def scenario_node(state: SimulationState) -> dict:
 
         scene_config = SQA_SCENES.get(scene_number, SQA_SCENES[1])
         dan_trust = _get_npc_trust(state, "dan_frontend_dev")
-        blueprint = _load_sqa_blueprint(scene_number)
         # Token control: pass only last 2 history turns to prompt builder
         history_summary = _build_history_summary(history[-2:])
 
@@ -398,7 +365,6 @@ def scenario_node(state: SimulationState) -> dict:
             difficulty=difficulty,
             history_summary=history_summary,
             dan_trust=dan_trust,
-            blueprint=blueprint,
             scene_config=scene_config,
         )
         llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)

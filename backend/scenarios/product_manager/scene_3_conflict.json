@@ -1,7 +1,0 @@
-{
-  "scene_number": 3,
-  "type": "stakeholder_conflict",
-  "title": "Cross-Functional Direct Friction",
-  "description": "A deadlocked negotiation: Sara Khan demands feature velocity updates immediately, while Engineering Lead Mr. Jawaid refuses to push raw code until staging stabilizes.",
-  "context_keys": ["conflict_resolution", "negotiation", "balance_of_interests"]
-}

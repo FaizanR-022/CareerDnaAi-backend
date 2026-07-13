@@ -20,6 +20,9 @@ DAN_NPC = {
 SQA_SCENES = {
     1: {
         "type": "bug_investigation",
+        "title": "Staging Checkout Pipeline Defect",
+        "description": "The current staging environment reports intermittent API failures during checkout requests. Isolate the functional logic failure under distinct tier rules.",
+        "context_keys": ["api_tracing", "network_payloads", "error_isolation"],
         "context": (
             "The student is reviewing a checkout and payment form on staging. "
             "The form has: email field, password field (8+ chars per spec), "
@@ -54,6 +57,9 @@ SQA_SCENES = {
     },
     2: {
         "type": "test_case_writing",
+        "title": "Regression Strategy for Core Ledger Systems",
+        "description": "Draft complete regression execution paths for a new financial ledger while identifying a hidden unindexed database concurrency vulnerability.",
+        "context_keys": ["regression_testing", "concurrency_issues", "test_documentation"],
         "context": (
             "Dan fixed the card number validation bug. Student must write structured "
             "test cases for the checkout flow and run a regression check. "
@@ -64,6 +70,9 @@ SQA_SCENES = {
     },
     3: {
         "type": "multi_environment",
+        "title": "Cross-Browser Rendering Collisions",
+        "description": "A design layout rendering discrepancy appears across Mobile Safari and Tablet Firefox viewports, causing flex container overlap.",
+        "context_keys": ["cross_browser_testing", "layout_reflow", "viewport_compat"],
         "context": (
             "Test the checkout form across environments: Desktop Chrome, Mobile Safari, Tablet Firefox. "
             "Environment-specific bugs exist: "
@@ -75,6 +84,9 @@ SQA_SCENES = {
     },
     4: {
         "type": "requirement_gap_analysis",
+        "title": "PRD Contradiction Triage",
+        "description": "Read the product specification document before release to identify contradictory checkout rules (Mandatory Registration vs Guest Checkout).",
+        "context_keys": ["prd_analysis", "gap_detection", "logic_conflicts"],
         "context": (
             "Read the product spec BEFORE testing starts. Identify what is missing or contradictory. "
             "Gap 1: Spec says session expires after inactivity but never defines what inactivity means. "
