@@ -1,7 +1,0 @@
-{
-  "scene_number": 1,
-  "type": "bug_investigation",
-  "title": "Staging Checkout Pipeline Defect",
-  "description": "The current staging environment reports intermittent API failures during checkout requests. The student must isolate the functional logic failure under distinct tier rules.",
-  "context_keys": ["api_tracing", "network_payloads", "error_isolation"]
-}

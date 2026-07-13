@@ -1,0 +1,67 @@
+{
+  "domain": "sqa_engineer",
+  "npc": "Dan (Frontend Developer) — defensive, under deadline pressure, dismisses bugs without evidence",
+  "scenes": {
+    "scene_1": {
+      "type": "bug_investigation",
+      "title": "Checkout Form QA Review",
+      "description": "Dan pushed the staging build. The checkout/payment form has seeded bugs. Student must find and report them with proper severity classification.",
+      "student_workspace": {
+        "form_fields": ["email", "password (8+ chars per spec)", "card number (16 digits)", "expiry date", "CVV (3 digits)"],
+        "spec_document": "PRD Section 1.1: mandatory account registration. Section 2.4: guest checkout must remain available.",
+        "seeded_bugs_easy": [
+          "Email field accepts submission without @ symbol",
+          "Password accepts any length — spec says 8+ minimum",
+          "Card number accepts fewer than 16 digits"
+        ],
+        "seeded_bugs_medium": [
+          "Email accepts invalid format",
+          "Password accepts any length",
+          "Card number accepts fewer than 16 digits",
+          "Expiry accepts past dates (01/20)",
+          "Guest checkout bypasses email validation"
+        ],
+        "seeded_bugs_hard": [
+          "Email accepts invalid format",
+          "Password accepts any length",
+          "Card number accepts fewer than 16 digits",
+          "Expiry accepts past dates",
+          "Guest checkout bypasses email validation",
+          "CVV accepts 2 digits",
+          "Password errors console-only, no UI feedback",
+          "Section 1.1 vs 2.4 direct spec contradiction"
+        ]
+      },
+      "dan_opening": "Hey, just pushed the staging build. Can you review the checkout form? We need to ship tonight."
+    },
+    "scene_2": {
+      "type": "test_case_writing",
+      "title": "Test Case Documentation",
+      "description": "Dan fixed the card number validation. Student must write structured test cases and run regression. Hidden trap: Dan's fix broke copy-paste in the card field.",
+      "test_case_format": {
+        "required_fields": ["Test Case ID", "Description", "Pre-conditions", "Steps", "Expected Result", "Actual Result", "Status", "Severity"]
+      },
+      "regression_trap": "Copy-paste functionality broken in card number field after Dan's fix — student must catch this."
+    },
+    "scene_3": {
+      "type": "multi_environment_testing",
+      "title": "Cross-Environment QA",
+      "description": "Test checkout form across Desktop Chrome, Mobile Safari, Tablet Firefox. Environment-specific bugs exist.",
+      "environment_bugs": {
+        "mobile_safari": "Card number field overflows — last 4 digits visually cut off",
+        "tablet_firefox": "Submit button partially below viewport fold, requires non-obvious scroll"
+      },
+      "priority_question": "Student must justify which environment's bugs are highest severity based on user analytics"
+    },
+    "scene_4": {
+      "type": "requirement_gap_analysis",
+      "title": "Spec Gap Review",
+      "description": "Read PRD before testing. Identify what is missing or contradictory. FINAL SCENE.",
+      "gaps": {
+        "gap_1": "Spec says session expires after inactivity — never defines inactivity duration",
+        "gap_2": "Password section says characters must be inputted — no length or complexity rule",
+        "gap_3_hard_only": "Section 1.1 requires mandatory registration. Section 2.4 requires guest checkout. Direct contradiction."
+      }
+    }
+  }
+}

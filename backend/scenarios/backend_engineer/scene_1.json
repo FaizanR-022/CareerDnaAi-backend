@@ -1,0 +1,22 @@
+{
+  "domain": "backend_engineer",
+  "scene_number": 1,
+  "type": "incident_response",
+  "title": "Slow Endpoint Incident",
+  "description": "A GET /api/orders endpoint is responding in 8-12 seconds instead of expected 200ms. Production is affected. Student must diagnose and respond.",
+  "npc": "Team Lead — calm, expects methodical diagnosis, needs a status update for the CEO",
+  "system_context": {
+    "endpoint": "GET /api/orders?user_id=123&status=pending",
+    "database": "PostgreSQL, orders table has 2.3M rows",
+    "recent_changes": "Deployed new filtering feature 2 hours ago",
+    "logs": "Query taking 7-9s: SELECT * FROM orders WHERE user_id=? AND status=? ORDER BY created_at DESC"
+  },
+  "root_cause": "Missing composite index on (user_id, status, created_at). New filter added without index.",
+  "correct_diagnosis_path": [
+    "Check query execution plan (EXPLAIN ANALYZE)",
+    "Identify missing index",
+    "Add index as hotfix",
+    "Monitor p95 latency after fix"
+  ],
+  "trap": "Student might rollback the deployment — wrong move, the query logic is correct, just missing index"
+}

@@ -1,7 +1,0 @@
-{
-  "scene_number": 1,
-  "type": "metric_anomaly",
-  "title": "The Conversion Telemetry Crash",
-  "description": "Production instrumentation monitors flag a sudden, catastrophic 18% crash in active telemetry user conversion funnels.",
-  "context_keys": ["telemetry_drift", "anomaly_detection", "funnel_analysis"]
-}

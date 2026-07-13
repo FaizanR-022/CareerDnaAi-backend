@@ -1,7 +1,0 @@
-{
-  "scene_number": 4,
-  "type": "requirement_gap_analysis",
-  "title": "The Contradictory PRD Review",
-  "description": "Perform a final pre-testing document audit to identify severe, high-level business logic contradictions before developers write the functional code blocks.",
-  "context_keys": ["prd_auditing", "logic_gaps", "quality_gatekeeping"]
-}
