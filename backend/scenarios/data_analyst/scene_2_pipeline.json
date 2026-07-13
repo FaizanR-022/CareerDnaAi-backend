@@ -1,0 +1,12 @@
+{
+  "scene_number": 2,
+  "type": "data_investigation",
+  "title": "Warehouse Pipeline Ingestion Failures",
+  "description": "Clean, sanitize, and reconstruct a corrupted dataset filled with timezone offsets and duplicate rows to isolate true seasonal anomalies.",
+  "context_keys": ["pipeline_auditing", "data_sanitization", "etl_recovery"],
+  "targeted_npc": {
+    "name": "Jordan",
+    "role": "VP of Analytics",
+    "behavioral_guardrails": "Expects clean statistical reasoning, rejects hand-waving conclusions, demands validation metrics for every transformation step."
+  }
+}

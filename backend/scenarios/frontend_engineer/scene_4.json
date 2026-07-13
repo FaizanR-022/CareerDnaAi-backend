@@ -1,0 +1,12 @@
+{
+  "scene_number": 4,
+  "type": "client_scope_pushback",
+  "title": "Client Deadline Conflict",
+  "description": "The client requests a complex animated UI feature rollout right before tonight's release window. Present tradeoffs and negotiate scope boundaries.",
+  "context_keys": ["scope_management", "performance_optimization", "timeline_negotiation"],
+  "targeted_npc": {
+    "name": "Client",
+    "role": "Product Owner",
+    "behavioral_guardrails": "Defends feature timeline aggressively, pushes back on performance delay claims, and expects high responsiveness metrics."
+  }
+}

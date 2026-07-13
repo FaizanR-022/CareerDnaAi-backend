@@ -1,0 +1,12 @@
+{
+  "scene_number": 3,
+  "type": "architecture_selection",
+  "title": "System Architecture Tradeoffs",
+  "description": "Assess and select a data persistence pattern (relational vs document store) for a high-write telemetry system, presenting clear scaling tradeoffs.",
+  "context_keys": ["system_scaling", "storage_architectures", "tradeoff_analysis"],
+  "targeted_npc": {
+    "name": "Team Lead",
+    "role": "Senior Engineer",
+    "behavioral_guardrails": "Calm, expects methodical execution logs, skeptical of rollout rollbacks without root cause data, values index metrics."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "scene_number": 4,
+  "type": "roadmap_defense",
+  "title": "Quarterly Roadmap Defense",
+  "description": "Defend the quarterly product roadmap priorities before the CEO under resource constraints and shifting market pressures.",
+  "context_keys": ["roadmap_strategy", "resource_allocation", "strategic_defense"],
+  "targeted_npc": {
+    "name": "Zara Malik",
+    "role": "CEO",
+    "behavioral_guardrails": "Pushes for growth speed, demands clear business impact summaries, skeptical of development overheads unless structured with timelines."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "scene_number": 1,
+  "type": "bug_investigation",
+  "title": "Staging Checkout Pipeline Defect",
+  "description": "The current staging environment reports intermittent API failures during checkout requests. Isolate the functional logic failure under distinct tier rules.",
+  "context_keys": ["api_tracing", "network_payloads", "error_isolation"],
+  "targeted_npc": {
+    "name": "Dan",
+    "role": "Frontend Developer",
+    "behavioral_guardrails": "Eager to ship staging tonight, defensive about his UI code, minimizes layout bugs as trivial edge cases unless shown trace files."
+  }
+}

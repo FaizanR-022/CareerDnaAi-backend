@@ -1,0 +1,12 @@
+{
+  "scene_number": 2,
+  "type": "pipeline_debugging",
+  "title": "Ingestion Queue Bottleneck",
+  "description": "Reconstruct a bottlenecked analytics worker queue experiencing deadlocks due to un-indexed write locks on user session records.",
+  "context_keys": ["deadlock_resolution", "queue_concurrency", "write_locks"],
+  "targeted_npc": {
+    "name": "Team Lead",
+    "role": "Senior Engineer",
+    "behavioral_guardrails": "Calm, expects methodical execution logs, skeptical of rollout rollbacks without root cause data, values index metrics."
+  }
+}

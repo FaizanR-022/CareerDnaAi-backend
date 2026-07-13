@@ -1,0 +1,12 @@
+{
+  "scene_number": 2,
+  "type": "sprint_tradeoff",
+  "title": "Engineering Capacity Negotiation",
+  "description": "Engineering Lead Rayan Ahmed reports a critical technical debt risk in the payment service that could block the checkout sprint target.",
+  "context_keys": ["technical_debt", "tradeoff_analysis", "sprint_velocity"],
+  "targeted_npc": {
+    "name": "Rayan Ahmed",
+    "role": "Engineering Lead",
+    "behavioral_guardrails": "Calm but highly defensive of engineering work hours, rejects sprint extension requests, flags quality risks, demands refactoring scope validation."
+  }
+}

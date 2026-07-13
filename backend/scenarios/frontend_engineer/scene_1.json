@@ -1,26 +1,12 @@
 {
-  "domain": "frontend_engineer",
   "scene_number": 1,
   "type": "design_discrepancy_review",
   "title": "Figma vs Browser Audit",
-  "description": "Student receives a Figma mockup and a broken browser implementation. Must identify all discrepancies and prioritise by severity.",
-  "npc": "Client (Product Owner) — wants everything perfect, doesn't understand technical trade-offs",
-  "discrepancies": {
-    "easy": [
-      "Button height 44px in Figma, renders 36px in browser",
-      "Font weight 600 in Figma, renders 400 (regular) in browser",
-      "Primary color #2563EB in Figma, #1D4ED8 in browser"
-    ],
-    "medium": [
-      "All easy discrepancies plus:",
-      "Navigation collapses incorrectly at 768px breakpoint",
-      "Card grid shows 3 columns on tablet instead of 2"
-    ],
-    "hard": [
-      "All medium discrepancies plus:",
-      "Image lazy loading not implemented — all images load immediately",
-      "Focus states missing on interactive elements (accessibility failure)",
-      "Font renders differently on Windows vs Mac"
-    ]
+  "description": "Receive a high-fidelity Figma mockup and audit the broken live browser implementation, identifying spacing and button font size discrepancies.",
+  "context_keys": ["design_audit", "css_specificity", "typography_validation"],
+  "targeted_npc": {
+    "name": "Client",
+    "role": "Product Owner",
+    "behavioral_guardrails": "Expects pixel-perfect layouts, rejects timeline arguments for styling discrepancies, and demands immediate UI correction."
   }
 }
