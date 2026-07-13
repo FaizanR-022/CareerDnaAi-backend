@@ -128,6 +128,10 @@ def submit_response(
             session_id, [u.model_dump() for u in result.npc_state_updates]
         )
 
+    lowered_difficulty = result.extra.get("lowered_difficulty")
+    if lowered_difficulty:
+        simulation_sessions.update_difficulty(session_id, lowered_difficulty)
+
     if scene_content.is_final_scene:
         simulation_sessions.update_status(
             session_id, "completed", completed_at=datetime.now(timezone.utc).isoformat()

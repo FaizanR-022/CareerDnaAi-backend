@@ -461,7 +461,7 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
             f"raw: {response.content[:200] if 'response' in dir() else 'no response'}"
         )
         fallback = _fallback_evaluation()
-        return {"current_evaluation": fallback, "latest_score": 50.0}
+        return {"current_evaluation": fallback, "latest_score": 25.0}
 
 
 def _get_sqa_dan_trust(state: SimulationState) -> int:

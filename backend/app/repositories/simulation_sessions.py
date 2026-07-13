@@ -88,3 +88,9 @@ def list_sessions_for_user(user_id: str) -> list[dict]:
         .order("started_at", desc=True)
     )
     return result.data
+
+def update_difficulty(session_id: str, new_difficulty: str) -> None:
+    supabase = get_supabase()
+    supabase.table("simulation_sessions").update({
+        "difficulty": new_difficulty
+    }).eq("id", session_id).execute()

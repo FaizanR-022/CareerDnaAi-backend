@@ -167,6 +167,10 @@ def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
     config = {"configurable": {"thread_id": ctx.simulation_session_id}}
     result = eval_graph.invoke(state, config=config)
     evaluation_dict = result.get("current_evaluation", {})
+    if "extra" not in evaluation_dict:
+        evaluation_dict["extra"] = {}
+    if result.get("lowered_difficulty"):
+        evaluation_dict["extra"]["lowered_difficulty"] = result["lowered_difficulty"]
     return EvaluationResult(**evaluation_dict)
 
 def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
