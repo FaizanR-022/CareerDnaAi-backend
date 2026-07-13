@@ -8,8 +8,8 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 
 @router.post("", response_model=CareerDnaReportResponse, status_code=201)
-def generate_report(req: ReportGenerateRequest, current_user: dict = Depends(get_current_user)):
-    return simulation_report_service.generate_report(current_user, req.simulation_session_ids)
+async def generate_report(req: ReportGenerateRequest, current_user: dict = Depends(get_current_user)):
+    return await simulation_report_service.generate_report(current_user, req.simulation_session_ids)
 
 
 @router.get("", response_model=list[CareerDnaReportResponse])

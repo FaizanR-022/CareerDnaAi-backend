@@ -12,7 +12,7 @@ import logging
 import pathlib
 from typing import Any
 
-from app.agents.llm import get_llm, call_llm_with_retry
+from app.agents.llm import get_llm, call_llm_with_retry, acall_llm_with_retry
 from app.agents.state import SimulationState
 from langchain_core.messages import SystemMessage, HumanMessage
 from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
@@ -42,7 +42,8 @@ def _build_history_summary(history: list) -> str:
         score = evaluation.get("overall_score", "N/A") if evaluation else "N/A"
         parts.append(
             f"Scene {scene.get('scene_number', '?')} ({scene.get('title', '?')}): "
-            f"student scored {score}/100"
+            f"student scored {score}/100\n"
+            f"<prior_student_response>{h.get('raw_text', '')}</prior_student_response>"
         )
     return " | ".join(parts)
 
@@ -339,7 +340,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
 
 # ─── Main node ───────────────────────────────────────────────────────────────
 
-def scenario_node(state: SimulationState) -> dict:
+async def scenario_node(state: SimulationState) -> dict:
     """
     LangGraph node — generates next scene for any supported domain.
     Called by: graph on generate_scene invocation.
@@ -369,7 +370,7 @@ def scenario_node(state: SimulationState) -> dict:
         )
         llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
         try:
-            response = call_llm_with_retry(
+            response = await acall_llm_with_retry(
                 llm,
                 [SystemMessage(content=prompt)],
                 stop=["```"],  # STOP SEQUENCE — strip markdown backticks
@@ -516,7 +517,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
 
     try:
-        response = call_llm_with_retry(
+        response = await acall_llm_with_retry(
             llm,
             [SystemMessage(content=prompt)],
             stop=["```"]  # STOP SEQUENCE — strips markdown backticks

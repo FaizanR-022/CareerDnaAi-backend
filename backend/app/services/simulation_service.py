@@ -67,7 +67,7 @@ def _build_history(session_id: str) -> list[HistoryEntry]:
     return history
 
 
-def start_simulation(current_user: dict, domain: Domain, difficulty: Difficulty) -> dict:
+async def start_simulation(current_user: dict, domain: Domain, difficulty: Difficulty) -> dict:
     user_id = current_user["user_id"]
     session_id = str(uuid.uuid4())
     simulation_sessions.create_session(session_id, user_id, domain, difficulty)
@@ -80,13 +80,13 @@ def start_simulation(current_user: dict, domain: Domain, difficulty: Difficulty)
         scene_number=1,
         user_profile_snippet=_get_profile_snippet(user_id, domain),
     )
-    scene = agent_client.generate_scene(ctx)
+    scene = await agent_client.generate_scene(ctx)
     simulation_scenes.save_scene(str(uuid.uuid4()), session_id, 1, scene.model_dump())
 
     return {"session_id": session_id, "scene": scene.model_dump()}
 
 
-def submit_response(
+async def submit_response(
     session_id: str,
     current_user: dict,
     scene_number: int,
@@ -120,7 +120,7 @@ def submit_response(
         user_response=user_response,
         history=_build_history(session_id),
     )
-    result = agent_client.evaluate_response(eval_ctx)
+    result = await agent_client.evaluate_response(eval_ctx)
     scene_evaluations.save_evaluation(scene_id, result.model_dump())
 
     if result.npc_state_updates:
@@ -150,7 +150,7 @@ def submit_response(
     }
 
 
-def request_next_scene(session_id: str, current_user: dict) -> dict:
+async def request_next_scene(session_id: str, current_user: dict) -> dict:
     session = _get_owned_session(session_id, current_user)
     if session["status"] == "completed":
         raise HTTPException(status_code=409, detail="Simulation already completed")
@@ -174,7 +174,7 @@ def request_next_scene(session_id: str, current_user: dict) -> dict:
         user_profile_snippet=_get_profile_snippet(session["user_id"], session["domain"]),
         history=_build_history(session_id),
     )
-    scene = agent_client.generate_scene(ctx)
+    scene = await agent_client.generate_scene(ctx)
     simulation_scenes.save_scene(str(uuid.uuid4()), session_id, next_number, scene.model_dump())
     simulation_sessions.bump_scene_number(session_id, next_number)
 

@@ -1,3 +1,4 @@
+import pytest
 """
 Test Suite — app.services.mock_agent
 Deterministic mock scene/evaluation/fit-report/MCQ generation, validated
@@ -47,8 +48,9 @@ def _eval_ctx(scene, raw_text="a thoughtful response"):
     )
 
 
-def test_generate_scene_returns_valid_scene_content():
-    scene = mock_agent.generate_scene(_scene_ctx(scene_number=1))
+@pytest.mark.anyio
+async def test_generate_scene_returns_valid_scene_content():
+    scene = await mock_agent.generate_scene(_scene_ctx(scene_number=1))
 
     assert isinstance(scene, SceneContent)
     assert scene.scene_number == 1
@@ -57,17 +59,19 @@ def test_generate_scene_returns_valid_scene_content():
     assert scene.is_final_scene is False
 
 
-def test_generate_scene_marks_final_at_total_scenes():
-    scene = mock_agent.generate_scene(_scene_ctx(scene_number=mock_agent.MOCK_TOTAL_SCENES))
+@pytest.mark.anyio
+async def test_generate_scene_marks_final_at_total_scenes():
+    scene = await mock_agent.generate_scene(_scene_ctx(scene_number=mock_agent.MOCK_TOTAL_SCENES))
     assert scene.is_final_scene is True
 
-    scene_before = mock_agent.generate_scene(_scene_ctx(scene_number=mock_agent.MOCK_TOTAL_SCENES - 1))
+    scene_before = await mock_agent.generate_scene(_scene_ctx(scene_number=mock_agent.MOCK_TOTAL_SCENES - 1))
     assert scene_before.is_final_scene is False
 
 
-def test_evaluate_response_returns_valid_evaluation_result():
-    scene = mock_agent.generate_scene(_scene_ctx(scene_number=1))
-    result = mock_agent.evaluate_response(_eval_ctx(scene))
+@pytest.mark.anyio
+async def test_evaluate_response_returns_valid_evaluation_result():
+    scene = await mock_agent.generate_scene(_scene_ctx(scene_number=1))
+    result = await mock_agent.evaluate_response(_eval_ctx(scene))
 
     assert isinstance(result, EvaluationResult)
     assert 0 <= result.overall_score <= 100
@@ -78,25 +82,28 @@ def test_evaluate_response_returns_valid_evaluation_result():
     assert len(result.npc_state_updates) == 1
 
 
-def test_evaluate_response_score_deterministic_on_input_length():
-    scene = mock_agent.generate_scene(_scene_ctx(scene_number=1))
-    result_a = mock_agent.evaluate_response(_eval_ctx(scene, raw_text="short"))
-    result_b = mock_agent.evaluate_response(_eval_ctx(scene, raw_text="short"))
-    result_c = mock_agent.evaluate_response(_eval_ctx(scene, raw_text="a much longer response text"))
+@pytest.mark.anyio
+async def test_evaluate_response_score_deterministic_on_input_length():
+    scene = await mock_agent.generate_scene(_scene_ctx(scene_number=1))
+    result_a = await mock_agent.evaluate_response(_eval_ctx(scene, raw_text="short"))
+    result_b = await mock_agent.evaluate_response(_eval_ctx(scene, raw_text="short"))
+    result_c = await mock_agent.evaluate_response(_eval_ctx(scene, raw_text="a much longer response text"))
 
     assert result_a.overall_score == result_b.overall_score
     assert result_c.overall_score >= result_a.overall_score
 
 
-def test_evaluate_response_handles_empty_response_text():
-    scene = mock_agent.generate_scene(_scene_ctx(scene_number=1))
-    result = mock_agent.evaluate_response(_eval_ctx(scene, raw_text=""))
+@pytest.mark.anyio
+async def test_evaluate_response_handles_empty_response_text():
+    scene = await mock_agent.generate_scene(_scene_ctx(scene_number=1))
+    result = await mock_agent.evaluate_response(_eval_ctx(scene, raw_text=""))
     assert 0 <= result.overall_score <= 100
 
 
-def test_generate_fit_report_returns_valid_result():
-    scene = mock_agent.generate_scene(_scene_ctx(scene_number=1))
-    evaluation = mock_agent.evaluate_response(_eval_ctx(scene, raw_text="a solid response here"))
+@pytest.mark.anyio
+async def test_generate_fit_report_returns_valid_result():
+    scene = await mock_agent.generate_scene(_scene_ctx(scene_number=1))
+    evaluation = await mock_agent.evaluate_response(_eval_ctx(scene, raw_text="a solid response here"))
 
     ctx = FitReportContext(
         user_id="user-1",
@@ -111,7 +118,7 @@ def test_generate_fit_report_returns_valid_result():
             )
         ],
     )
-    result = mock_agent.generate_fit_report(ctx)
+    result = await mock_agent.generate_fit_report(ctx)
 
     assert isinstance(result, FitReportResult)
     assert result.top_recommendation in result.ranked_domains
@@ -122,22 +129,24 @@ def test_generate_fit_report_returns_valid_result():
     assert cited_ids <= {"eval-1"}
 
 
-def test_generate_fit_report_handles_no_evaluations():
+@pytest.mark.anyio
+async def test_generate_fit_report_handles_no_evaluations():
     ctx = FitReportContext(user_id="user-1", sessions=[])
-    result = mock_agent.generate_fit_report(ctx)
+    result = await mock_agent.generate_fit_report(ctx)
 
     assert isinstance(result, FitReportResult)
     assert result.dimension_scores == {}
     assert result.confidence_level == "directional"
 
 
-def test_generate_mcqs_returns_five_questions():
+@pytest.mark.anyio
+async def test_generate_mcqs_returns_five_questions():
     ctx = MCQGenerationContext(
         user_id="user-1",
         chosen_field="sqa_engineer",
         self_assessment=[],
     )
-    result = mock_agent.generate_mcqs(ctx)
+    result = await mock_agent.generate_mcqs(ctx)
 
     assert isinstance(result, MCQGenerationResult)
     assert len(result.questions) == 5
@@ -146,9 +155,10 @@ def test_generate_mcqs_returns_five_questions():
         assert 0 <= q.correct_option_index < 4
 
 
-def test_history_entry_round_trips_through_scene_and_evaluation():
-    scene = mock_agent.generate_scene(_scene_ctx(scene_number=1))
-    evaluation = mock_agent.evaluate_response(_eval_ctx(scene))
+@pytest.mark.anyio
+async def test_history_entry_round_trips_through_scene_and_evaluation():
+    scene = await mock_agent.generate_scene(_scene_ctx(scene_number=1))
+    evaluation = await mock_agent.evaluate_response(_eval_ctx(scene))
     entry = HistoryEntry(scene=scene, evaluation=evaluation)
 
     assert entry.scene.scene_number == 1

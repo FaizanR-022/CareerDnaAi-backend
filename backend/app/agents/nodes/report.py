@@ -1,7 +1,7 @@
 import json
 import logging
 from typing import Dict, Any
-from app.agents.llm import get_llm
+from app.agents.llm import get_llm, acall_llm_with_retry
 from app.agents.state import SimulationState
 from langchain_core.messages import SystemMessage
 
@@ -56,7 +56,7 @@ def _fallback_report(summary_msg: str = "API execution limit reached. Running av
         "growth_areas": ["ambiguity_tolerance"]
     }
 
-def report_node(state: SimulationState) -> dict:
+async def report_node(state: SimulationState) -> dict:
     """
     LangGraph report node. Compiles the final student narrative report using the Groq API.
     Reads evaluations history, computes baseline running averages, runs dot-product fits,
@@ -147,7 +147,8 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
 
         # Get LLM and run inference
         llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.1)
-        response = llm.invoke(
+        response = await acall_llm_with_retry(
+            llm,
             [SystemMessage(content=prompt)],
             stop=["```"]  # JSON Sanitization Shield stop sequence
         )

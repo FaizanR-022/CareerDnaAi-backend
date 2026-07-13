@@ -54,3 +54,32 @@ def call_llm_with_retry(llm, messages, stop=None, max_retries=3):
                     continue
             raise  # re-raise non-rate-limit errors immediately
     raise Exception("Max retries exceeded for LLM call")
+
+
+import asyncio
+
+async def acall_llm_with_retry(llm, messages, stop=None, max_retries=3):
+    """
+    Async version of call_llm_with_retry.
+    Uses ainvoke() to avoid blocking FastAPI worker threads.
+    """
+    for attempt in range(max_retries):
+        try:
+            if stop:
+                return await llm.ainvoke(messages, stop=stop)
+            return await llm.ainvoke(messages)
+        except Exception as e:
+            error_str = str(e).lower()
+            if ("429" in error_str or "rate limit" in error_str or
+                    "too many requests" in error_str):
+                if attempt < max_retries - 1:
+                    wait_seconds = 2 ** (attempt + 1)
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"Groq rate limit hit async (attempt {attempt+1}/{max_retries}). "
+                        f"Waiting {wait_seconds}s."
+                    )
+                    await asyncio.sleep(wait_seconds)
+                    continue
+            raise
+    raise Exception("Max retries exceeded for async LLM call")

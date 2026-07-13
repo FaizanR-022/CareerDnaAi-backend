@@ -80,7 +80,7 @@ def _row_to_response(row: dict) -> dict:
     }
 
 
-def generate_report(current_user: dict, simulation_session_ids: list[str]) -> dict:
+async def generate_report(current_user: dict, simulation_session_ids: list[str]) -> dict:
     sessions = []
     for session_id in simulation_session_ids:
         session = simulation_sessions.get_session(session_id)
@@ -97,7 +97,7 @@ def generate_report(current_user: dict, simulation_session_ids: list[str]) -> di
 
     session_summaries = [_build_session_summary(s) for s in completed]
     ctx = FitReportContext(user_id=current_user["user_id"], sessions=session_summaries)
-    result = agent_client.generate_fit_report(ctx)
+    result = await agent_client.generate_fit_report(ctx)
 
     row = {
         "id": str(uuid.uuid4()),

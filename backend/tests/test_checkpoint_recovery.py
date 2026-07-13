@@ -70,14 +70,15 @@ def initial_state() -> dict:
 # ─── Phase 1: State Initialisation ────────────────────────────────────────────
 
 
-def test_phase1_scene_graph_initialises_session(
+@pytest.mark.anyio
+async def test_phase1_scene_graph_initialises_session(
     graph_module, initial_state
 ):
     """
     Phase 1 — Drive the scene graph to generate Scene 1.
     The checkpointer must persist the resulting state under THREAD_ID.
     """
-    result = graph_module.scene_graph.invoke(initial_state, config=CONFIG)
+    result = await graph_module.scene_graph.ainvoke(initial_state, config=CONFIG)
 
     # Scene must be generated
     assert result is not None, "scene_graph.invoke() returned None"
@@ -170,7 +171,8 @@ def test_phase3_recovered_state_fields_types(graph_module):
 # ─── Phase 4: Context-Aware Follow-Up ─────────────────────────────────────────
 
 
-def test_phase4_eval_graph_runs_with_recovered_context(graph_module, initial_state):
+@pytest.mark.anyio
+async def test_phase4_eval_graph_runs_with_recovered_context(graph_module, initial_state):
     """
     Phase 4 — Fire a student response into the eval_graph using the same
     THREAD_ID config. The evaluation engine must run without errors.
@@ -220,7 +222,7 @@ def test_phase4_eval_graph_runs_with_recovered_context(graph_module, initial_sta
         "history": [],
     }
 
-    result = graph_module.eval_graph.invoke(eval_state, config=CONFIG)
+    result = await graph_module.eval_graph.ainvoke(eval_state, config=CONFIG)
 
     # Core assertions
     assert result is not None, "eval_graph.invoke() returned None"
@@ -246,7 +248,8 @@ def test_phase4_eval_graph_runs_with_recovered_context(graph_module, initial_sta
     assert not missing, f"Missing dimension scores: {missing}"
 
 
-def test_phase4_sqa_trust_modifier_applied_on_evidence(graph_module):
+@pytest.mark.anyio
+async def test_phase4_sqa_trust_modifier_applied_on_evidence(graph_module):
     """
     Phase 4 (SQA-specific) — Verify that providing console traces in an SQA
     response causes the trust modifier (+10) to be injected into npc_trust.
@@ -297,7 +300,7 @@ def test_phase4_sqa_trust_modifier_applied_on_evidence(graph_module):
     }
 
     sqa_config = {"configurable": {"thread_id": "test-sqa-trust-modifier"}}
-    result = graph_module.eval_graph.invoke(sqa_state, config=sqa_config)
+    result = await graph_module.eval_graph.ainvoke(sqa_state, config=sqa_config)
 
     assert result is not None
     # npc_trust must be updated in the result
@@ -310,7 +313,8 @@ def test_phase4_sqa_trust_modifier_applied_on_evidence(graph_module):
     )
 
 
-def test_phase4_sqa_trust_penalty_on_premature_escalation(graph_module):
+@pytest.mark.anyio
+async def test_phase4_sqa_trust_penalty_on_premature_escalation(graph_module):
     """
     Phase 4 (SQA-specific) — Verify that escalating to management without
     evidence causes the trust modifier (-15) to be applied.
@@ -359,7 +363,7 @@ def test_phase4_sqa_trust_penalty_on_premature_escalation(graph_module):
     }
 
     sqa_config = {"configurable": {"thread_id": "test-sqa-escalation-penalty"}}
-    result = graph_module.eval_graph.invoke(sqa_state, config=sqa_config)
+    result = await graph_module.eval_graph.ainvoke(sqa_state, config=sqa_config)
 
     assert result is not None
     npc_trust = result.get("npc_trust", {})

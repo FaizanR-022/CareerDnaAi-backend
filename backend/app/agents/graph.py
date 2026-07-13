@@ -103,7 +103,7 @@ except Exception as e:
 
 # --- Entry points called by agent_client.py ---
 
-def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
+async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
     """Convert SceneGenerationContext to SimulationState and run scene graph."""
     state = {
         "simulation_session_id": ctx.simulation_session_id,
@@ -133,12 +133,12 @@ def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
         "student_response": "",
     }
     config = {"configurable": {"thread_id": ctx.simulation_session_id}}
-    result = scene_graph.invoke(state, config=config)
+    result = await scene_graph.ainvoke(state, config=config)
     scene_dict = result.get("current_scene", {})
     # Convert dict to SceneContent
     return SceneContent(**scene_dict)
 
-def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
+async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
     """Convert EvaluationContext to SimulationState and run eval graph."""
     state = {
         "simulation_session_id": ctx.simulation_session_id,
@@ -165,7 +165,7 @@ def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
         "loop_count": 0,
     }
     config = {"configurable": {"thread_id": ctx.simulation_session_id}}
-    result = eval_graph.invoke(state, config=config)
+    result = await eval_graph.ainvoke(state, config=config)
     evaluation_dict = result.get("current_evaluation", {})
     if "extra" not in evaluation_dict:
         evaluation_dict["extra"] = {}
@@ -173,7 +173,7 @@ def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
         evaluation_dict["extra"]["lowered_difficulty"] = result["lowered_difficulty"]
     return EvaluationResult(**evaluation_dict)
 
-def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
+async def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
     """
     Constructs the FitReportResult by aggregating student history, calculating fit vectors,
     and invoking the LLM qualitative evaluator.
@@ -222,7 +222,8 @@ def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
 
     # Invoke report LLM node to get the qualitative narration block
     state_mock = {"history": history_entries}
-    llm_report = report_node(state_mock).get("report", {})
+    report_result = await report_node(state_mock)
+    llm_report = report_result.get("report", {})
 
     return FitReportResult(
         domain_fit_scores=fit_data["domain_fit_scores"],
@@ -236,7 +237,7 @@ def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
     )
 
 
-def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
+async def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
     import json
     import logging
     from app.agents.llm import get_llm
@@ -248,34 +249,34 @@ def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
     FALLBACK_QUESTIONS = {
         "product_manager": [
             {
-                "question": "Your sprint board is full and Sara from Marketing urgently requests a new feature. What is your FIRST step?",
+                "question": "A stakeholder demands a new feature mid-sprint. The sprint is already over capacity. What is the most appropriate PM response?",
                 "options": [
-                    "Add it immediately to keep Sara happy",
-                    "Ask Sara what success looks like and check sprint capacity first",
-                    "Reject the request without explanation",
-                    "Escalate directly to the CEO"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "Rayan (Engineering Lead) says a feature will take 3 sprints. Sara says it must ship this sprint. What do you do?",
-                "options": [
-                    "Side with Sara — she is the business stakeholder",
-                    "Side with Rayan — never overrule engineering estimates",
-                    "Mediate: define the minimum viable scope that satisfies the core business goal",
-                    "Escalate to the VP immediately without making a decision"
+                    "Say yes and tell engineers they need to work over the weekend",
+                    "Say no immediately without discussing it",
+                    "Acknowledge the request, show the current sprint commitments, and ask what should be deprioritized to fit it in",
+                    "Quietly add it to the backlog and ignore the stakeholder"
                 ],
                 "correct_option_index": 2
             },
             {
-                "question": "What fields must a complete PRD always include?",
+                "question": "Engineering team says a feature will take 4 weeks. Sales promised it to a client in 2 weeks. What do you do?",
                 "options": [
-                    "Technical implementation details and code snippets",
-                    "Success metrics, scope, out-of-scope items, and stakeholders",
-                    "Marketing copy and pricing strategy",
-                    "Sprint ticket IDs and story points"
+                    "Tell engineering to finish it in 2 weeks no matter what",
+                    "Work with engineering to descope non-essential requirements to build an MVP in 2 weeks",
+                    "Tell sales it's impossible and refuse to help",
+                    "Add more engineers to the project to double the speed"
                 ],
                 "correct_option_index": 1
+            },
+            {
+                "question": "You are writing a PRD (Product Requirements Document). What is the most important section to include?",
+                "options": [
+                    "The exact code architecture the engineers should use",
+                    "The exact CSS hex codes for the UI",
+                    "The core user problem, success metrics, and acceptance criteria",
+                    "A list of all competitors in the market"
+                ],
+                "correct_option_index": 2
             },
             {
                 "question": "A stakeholder says you committed to a full feature scope but you only committed to exploring it. What is the best response?",
@@ -310,144 +311,144 @@ def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
                 "correct_option_index": 1
             },
             {
-                "question": "What must a bug report always include?",
+                "question": "A developer asks you to test their feature but provides no PRD or requirements. What is your first step?",
                 "options": [
-                    "Just a descriptive title",
-                    "Steps to reproduce, expected behavior, actual behavior, severity, and environment",
-                    "Your personal opinion on whether it should be fixed",
-                    "The name of the developer responsible"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "After a developer fixes a bug, you find copy-paste no longer works in a field that previously worked. This is:",
-                "options": [
-                    "A new feature request",
-                    "A regression bug introduced by the fix",
-                    "Expected behavior after a patch",
-                    "Out of scope for this test cycle"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "The spec says 'session expires after inactivity' but never defines what inactivity means. This is:",
-                "options": [
-                    "Acceptable — the developer decides implementation details",
-                    "A requirement gap that must be flagged to the PM before testing",
-                    "An intentional feature — ambiguity gives flexibility",
-                    "Out of scope for QA to question"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "Critical severity in bug triage means:",
-                "options": [
-                    "A minor UI alignment issue",
-                    "A typo visible to users",
-                    "The application crashes or a core user flow is completely blocked",
-                    "A feature enhancement request"
+                    "Start testing randomly and hope you find bugs",
+                    "Refuse to test it until a full 50-page document is written",
+                    "Ask the developer for a quick overview of expected behavior and edge cases before starting",
+                    "Write the code for them"
                 ],
                 "correct_option_index": 2
+            },
+            {
+                "question": "You find a critical bug in production right after a release. What is the priority?",
+                "options": [
+                    "Find out which developer caused it and blame them",
+                    "Write a 10-page post-mortem document",
+                    "Provide clear reproduction steps and logs so the team can hotfix or rollback immediately",
+                    "Wait until tomorrow to report it"
+                ],
+                "correct_option_index": 2
+            },
+            {
+                "question": "What is the primary purpose of regression testing?",
+                "options": [
+                    "To find completely new features to build",
+                    "To ensure that recent code changes haven't broken previously working functionality",
+                    "To test the speed of the application",
+                    "To check if the UI looks pretty"
+                ],
+                "correct_option_index": 1
+            },
+            {
+                "question": "A bug is intermittent (only happens 10% of the time). How do you log it?",
+                "options": [
+                    "Ignore it because it's too hard to reproduce",
+                    "Log it with exact environment details, frequency (1/10), and all console logs available",
+                    "Tell the developer it's completely broken",
+                    "Wait until it happens 100% of the time before logging"
+                ],
+                "correct_option_index": 1
             }
         ],
         "data_analyst": [
             {
-                "question": "A key metric drops 40% overnight. What is your first step?",
+                "question": "The VP of Analytics says signups dropped 20% yesterday. What is your first action?",
                 "options": [
-                    "Immediately alert the CEO",
-                    "Check if the data pipeline or tracking code has an error before drawing conclusions",
-                    "Assume it is a real business problem and start analysis",
-                    "Wait a week to see if it recovers"
+                    "Tell marketing their campaign failed",
+                    "Check if the tracking pixel or data pipeline broke before assuming user behavior changed",
+                    "Change the dashboard to hide the drop",
+                    "Run a machine learning model to predict tomorrow's signups"
                 ],
                 "correct_option_index": 1
             },
             {
-                "question": "A stakeholder says 'users who use feature X have higher retention'. What is the most important question to ask?",
+                "question": "You find a strong correlation between users who change their profile picture and users who buy subscriptions. What should you tell the PM?",
                 "options": [
-                    "How many users use feature X?",
-                    "Is this correlation or causation — do highly engaged users just happen to use X?",
-                    "Which engineer built feature X?",
-                    "Should we remove X to test the impact?"
+                    "We must force everyone to change their profile picture to increase revenue",
+                    "Correlation does not imply causation; we should run an A/B test to see if prompting a picture change drives revenue",
+                    "The data is probably wrong",
+                    "Profile pictures are the only thing that matters in the app"
                 ],
                 "correct_option_index": 1
             },
             {
-                "question": "You notice a dataset has 15% null values in a key column. What do you do?",
+                "question": "A dataset contains 5% missing values in a critical revenue column. How do you handle it for a high-stakes financial report?",
                 "options": [
-                    "Delete all rows with null values immediately",
-                    "Investigate why nulls exist before deciding how to handle them",
-                    "Replace all nulls with zero",
-                    "Ignore them — 85% of data is still valid"
+                    "Fill them all with zeroes",
+                    "Delete the rows entirely without telling anyone",
+                    "Investigate why they are missing, document the gap, and exclude/impute carefully while noting the assumption in the report",
+                    "Make up random numbers to fill the gaps"
+                ],
+                "correct_option_index": 2
+            },
+            {
+                "question": "You need to explain a complex statistical model to a non-technical stakeholder. How do you approach it?",
+                "options": [
+                    "Use as much math jargon as possible to sound smart",
+                    "Focus on the business impact, actionable insights, and confidence level rather than the math",
+                    "Give them the raw Python code to read",
+                    "Refuse to explain it because they wouldn't understand"
                 ],
                 "correct_option_index": 1
             },
             {
-                "question": "What makes a data visualization effective?",
+                "question": "What is the risk of presenting data without confidence intervals or error margins?",
                 "options": [
-                    "Using as many colors and chart types as possible",
-                    "Showing one clear insight per chart with appropriate chart type for the data",
-                    "Including all available data points regardless of relevance",
-                    "Making it look impressive for presentations"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "A VP asks you to prove that a new feature caused the sales increase. The feature launched the same week as a major marketing campaign. What do you say?",
-                "options": [
-                    "Confirm the feature caused it — the timing matches",
-                    "We cannot isolate the feature's impact without a controlled experiment; both launched simultaneously",
-                    "The marketing campaign caused it, not the feature",
-                    "Run more SQL queries until one shows the feature impact"
+                    "It makes the dashboard load slower",
+                    "Stakeholders might make rigid decisions based on noisy data, believing it to be absolute truth",
+                    "It takes too much time to calculate",
+                    "There is no risk; data is always perfect"
                 ],
                 "correct_option_index": 1
             }
         ],
         "frontend_engineer": [
             {
-                "question": "A designer's Figma mockup shows a button at 44px height but the browser renders it at 36px. What do you check first?",
+                "question": "A client demands a 3D animation that causes the page to lag heavily on mobile. What do you do?",
                 "options": [
-                    "Report a bug to the designer",
-                    "Check CSS specificity conflicts, padding, and box-sizing settings",
-                    "Hardcode the height in pixels",
-                    "Ignore it — close enough"
+                    "Implement it exactly as requested — it's their problem",
+                    "Refuse to do it and tell them they have bad taste",
+                    "Explain the performance impact and propose a lighter CSS alternative that achieves a similar feel",
+                    "Tell them mobile users don't matter"
+                ],
+                "correct_option_index": 2
+            },
+            {
+                "question": "You are reviewing a PR that uses highly specific CSS selectors (e.g., `div#main .container ul li.active`). Why is this bad?",
+                "options": [
+                    "It makes the CSS file smaller",
+                    "It causes specificity wars, making styles incredibly hard to override later",
+                    "Browsers cannot read specific selectors",
+                    "It is actually the best practice"
                 ],
                 "correct_option_index": 1
             },
             {
-                "question": "A client wants a component that 'works on all screen sizes'. What is your first clarifying question?",
+                "question": "A visually impaired user cannot navigate a custom dropdown menu you built. What did you likely forget?",
                 "options": [
-                    "What screen sizes do your users actually use based on analytics?",
-                    "Is mobile more important than desktop?",
-                    "Should we build a separate mobile app?",
-                    "How many breakpoints do you want?"
-                ],
-                "correct_option_index": 0
-            },
-            {
-                "question": "A page loads slowly on mobile. What is the most likely first thing to investigate?",
-                "options": [
-                    "Server response time",
-                    "Unoptimized images, unused JavaScript, and render-blocking resources",
-                    "The user's internet connection",
-                    "CSS animations"
+                    "Adding more CSS colors",
+                    "Proper ARIA roles and keyboard (tab) navigation support",
+                    "Using a JavaScript framework like React",
+                    "Making the font bigger"
                 ],
                 "correct_option_index": 1
             },
             {
-                "question": "What does 'semantic HTML' mean and why does it matter?",
+                "question": "Your Lighthouse performance score is 30/100 due to 'Largest Contentful Paint' (LCP). What is a common fix?",
                 "options": [
-                    "Using only div and span elements for cleaner code",
-                    "Using HTML elements that describe their meaning (nav, article, button) for accessibility and SEO",
-                    "Writing HTML comments to explain the code",
-                    "Using the latest HTML5 features regardless of browser support"
+                    "Add more JavaScript",
+                    "Optimize and compress the hero image, and ensure it loads early without render-blocking JS",
+                    "Delete all the CSS",
+                    "Tell the PM Lighthouse doesn't matter"
                 ],
                 "correct_option_index": 1
             },
             {
-                "question": "A client asks you to add 5 new features to a landing page that is already loading slowly. What do you say?",
+                "question": "The design team hands off a UI that requires 5 different custom font families. What is your concern?",
                 "options": [
-                    "Add all 5 immediately to keep the client happy",
-                    "Explain the performance trade-off and ask which features deliver the most value to prioritize",
+                    "It will look too beautiful",
+                    "Loading 5 web fonts will severely degrade page load speed and cause FOIT (Flash of Invisible Text)",
                     "Refuse all 5 — performance is non-negotiable",
                     "Add them and fix performance later"
                 ],
@@ -598,7 +599,7 @@ Return ONLY valid JSON, no markdown, no backticks:
 }}"""
 
     try:
-        response = llm.invoke(
+        response = await llm.ainvoke(
             [SystemMessage(content=prompt)],
             stop=["```"]
         )
@@ -606,8 +607,8 @@ Return ONLY valid JSON, no markdown, no backticks:
         result = json.loads(raw)
         questions = result.get("questions", [])
         if len(questions) != 5:
-            raise ValueError(f"Expected 5 questions, got {{len(questions)}}")
-        logger.info(f"MCQ generation succeeded for domain: {{domain}}")
+            raise ValueError(f"Expected 5 questions, got {len(questions)}")
+        logger.info(f"MCQ generation succeeded for domain: {domain}")
         return MCQGenerationResult(questions=questions)
     except Exception as e:
         logger.error(f"MCQ generation failed: {{e}} — using fallback")

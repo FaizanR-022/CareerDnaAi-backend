@@ -25,7 +25,7 @@ ALL_DOMAINS: list[Domain] = [
 ]
 
 
-def generate_scene(ctx: SceneGenerationContext) -> SceneContent:
+async def generate_scene(ctx: SceneGenerationContext) -> SceneContent:
     scene_number = ctx.scene_number
     return SceneContent(
         scene_number=scene_number,
@@ -54,7 +54,7 @@ def generate_scene(ctx: SceneGenerationContext) -> SceneContent:
     )
 
 
-def evaluate_response(ctx: EvaluationContext) -> EvaluationResult:
+async def evaluate_response(ctx: EvaluationContext) -> EvaluationResult:
     text = ctx.user_response.raw_text or ""
     overall_score = min(100.0, 40.0 + len(text) * 2)
     dimension_scores = {
@@ -82,7 +82,7 @@ def evaluate_response(ctx: EvaluationContext) -> EvaluationResult:
     )
 
 
-def generate_fit_report(ctx: FitReportContext) -> FitReportResult:
+async def generate_fit_report(ctx: FitReportContext) -> FitReportResult:
     all_scored = [e for session in ctx.sessions for e in session.evaluations]
 
     dimension_totals: dict[str, list[float]] = {}
@@ -129,7 +129,7 @@ def generate_fit_report(ctx: FitReportContext) -> FitReportResult:
     )
 
 
-def generate_mcqs(ctx: MCQGenerationContext) -> MCQGenerationResult:
+async def generate_mcqs(ctx: MCQGenerationContext) -> MCQGenerationResult:
     questions = [
         MCQQuestion(
             question=f"Mock calibration question {i} for {ctx.chosen_field}.",

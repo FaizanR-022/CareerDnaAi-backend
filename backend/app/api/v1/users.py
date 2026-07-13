@@ -13,7 +13,7 @@ router = APIRouter(tags=["users"])
 
 
 @router.post("/user/onboarding", response_model=MCQGenerationResult)
-def save_onboarding(req: OnboardingRequest, current_user: dict = Depends(get_current_user)):
+async def save_onboarding(req: OnboardingRequest, current_user: dict = Depends(get_current_user)):
     if get_supabase():
         users_repo.save_onboarding(current_user["user_id"], req.model_dump())
 
@@ -22,7 +22,7 @@ def save_onboarding(req: OnboardingRequest, current_user: dict = Depends(get_cur
         chosen_field=req.chosen_field,
         self_assessment=req.self_assessment,
     )
-    return agent_client.generate_mcqs(ctx)
+    return await agent_client.generate_mcqs(ctx)
 
 
 # NOTE: /users/me must be registered before /users/{user_id} — FastAPI matches
