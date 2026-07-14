@@ -53,13 +53,22 @@ async def human_input_node(state: SimulationState) -> dict:
     student_response = interrupt("Waiting for student response")
     return {"student_response": student_response}
 
+def wait_for_next_scene_node(state: SimulationState) -> dict:
+    """
+    Pauses execution after evaluation completes, waiting for the API
+    client to request the next scene.
+    """
+    interrupt("Waiting for next scene trigger")
+    return {}
+
 # ─── ROUTING ─────────────────────────────────────────────────────────────────
 
 def route_after_career_fit(state: SimulationState) -> str:
-    if state.get("should_loop_back"):
-        return "scenario_node"
-    else:
+    is_final = state.get("is_final_scene", False)
+    if is_final:
         return END
+    else:
+        return "wait_for_next_scene_node"
 
 # ─── COMPILE GRAPH ───────────────────────────────────────────────────────────
 
@@ -71,6 +80,7 @@ def build_graph(checkpointer):
     builder.add_node("human_input_node", human_input_node)
     builder.add_node("evaluation_node", evaluation_node)
     builder.add_node("career_fit_node", career_fit_node)
+    builder.add_node("wait_for_next_scene_node", wait_for_next_scene_node)
 
     builder.add_edge(START, "supervisor_node")
     builder.add_edge("supervisor_node", "scenario_node")
@@ -81,10 +91,11 @@ def build_graph(checkpointer):
         "career_fit_node",
         route_after_career_fit,
         {
-            "scenario_node": "scenario_node",
+            "wait_for_next_scene_node": "wait_for_next_scene_node",
             END: END,
         }
     )
+    builder.add_edge("wait_for_next_scene_node", "scenario_node")
 
     return builder.compile(checkpointer=checkpointer)
 
@@ -156,13 +167,13 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
         initial_state = _ctx_to_state(ctx)
         result = await graph.ainvoke(initial_state, config=config)
     else:
-        # Subsequent scene — graph already paused after career_fit_node
+        # Subsequent scene — graph already paused at wait_for_next_scene_node
         # Update scene_number in state then resume
         await graph.aupdate_state(
             config,
             {"scene_number": ctx.scene_number, "difficulty": ctx.difficulty}
         )
-        result = await graph.ainvoke(None, config=config)
+        result = await graph.ainvoke(Command(resume=True), config=config)
 
     scene_dict = result.get("current_scene", {})
     if not scene_dict:
