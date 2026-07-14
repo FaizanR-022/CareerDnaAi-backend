@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -70,12 +71,9 @@ def _build_history(session_id: str) -> list[HistoryEntry]:
     return history
 
 
-async def start_simulation(current_user: dict, domain: Domain, difficulty: Difficulty) -> dict:
-    user_id = current_user["user_id"]
-    session_id = str(uuid.uuid4())
+def _prepare_start(session_id: str, user_id: str, domain: Domain, difficulty: Difficulty) -> SceneGenerationContext:
     simulation_sessions.create_session(session_id, user_id, domain, difficulty)
-
-    ctx = SceneGenerationContext(
+    return SceneGenerationContext(
         simulation_session_id=session_id,
         user_id=user_id,
         domain=domain,
@@ -83,18 +81,19 @@ async def start_simulation(current_user: dict, domain: Domain, difficulty: Diffi
         scene_number=1,
         user_profile_snippet=_get_profile_snippet(user_id, domain),
     )
+
+async def start_simulation(current_user: dict, domain: Domain, difficulty: Difficulty) -> dict:
+    user_id = current_user["user_id"]
+    session_id = str(uuid.uuid4())
+    
+    ctx = await asyncio.to_thread(_prepare_start, session_id, user_id, domain, difficulty)
     scene = await agent_client.generate_scene(ctx)
-    simulation_scenes.save_scene(str(uuid.uuid4()), session_id, 1, scene.model_dump())
+    await asyncio.to_thread(simulation_scenes.save_scene, str(uuid.uuid4()), session_id, 1, scene.model_dump())
 
     return {"session_id": session_id, "scene": scene.model_dump()}
 
 
-async def submit_response(
-    session_id: str,
-    current_user: dict,
-    scene_number: int,
-    user_response: SubmittedResponse,
-) -> dict:
+def _prepare_submit(session_id: str, current_user: dict, scene_number: int, user_response: SubmittedResponse):
     session = _get_owned_session(session_id, current_user)
     if session["status"] == "completed":
         raise HTTPException(status_code=409, detail="Simulation already completed")
@@ -113,7 +112,7 @@ async def submit_response(
         scene_evaluations.create_pending(str(uuid.uuid4()), scene_id, user_response.model_dump())
 
     scene_content = SceneContent(**scene_row["content"])
-    eval_ctx = EvaluationContext(
+    return EvaluationContext(
         simulation_session_id=session_id,
         user_id=session["user_id"],
         domain=session["domain"],
@@ -122,8 +121,9 @@ async def submit_response(
         scene_content=scene_content,
         user_response=user_response,
         history=_build_history(session_id),
-    )
-    result = await agent_client.evaluate_response(eval_ctx)
+    ), session, scene_content, scene_id
+
+def _finalize_submit(session_id: str, scene_id: str, result: EvaluationResult, scene_content: SceneContent, session: dict, scene_number: int) -> dict:
     scene_evaluations.save_evaluation(scene_id, result.model_dump())
 
     if result.npc_state_updates:
@@ -152,8 +152,18 @@ async def submit_response(
         "session_status": session_status,
     }
 
+async def submit_response(
+    session_id: str,
+    current_user: dict,
+    scene_number: int,
+    user_response: SubmittedResponse,
+) -> dict:
+    eval_ctx, session, scene_content, scene_id = await asyncio.to_thread(_prepare_submit, session_id, current_user, scene_number, user_response)
+    result = await agent_client.evaluate_response(eval_ctx)
+    return await asyncio.to_thread(_finalize_submit, session_id, scene_id, result, scene_content, session, scene_number)
 
-async def request_next_scene(session_id: str, current_user: dict) -> dict:
+
+def _prepare_next(session_id: str, current_user: dict):
     session = _get_owned_session(session_id, current_user)
     if session["status"] == "completed":
         raise HTTPException(status_code=409, detail="Simulation already completed")
@@ -168,7 +178,7 @@ async def request_next_scene(session_id: str, current_user: dict) -> dict:
         raise HTTPException(status_code=409, detail="Current scene not yet evaluated")
 
     next_number = current_number + 1
-    ctx = SceneGenerationContext(
+    return SceneGenerationContext(
         simulation_session_id=session_id,
         user_id=session["user_id"],
         domain=session["domain"],
@@ -176,11 +186,16 @@ async def request_next_scene(session_id: str, current_user: dict) -> dict:
         scene_number=next_number,
         user_profile_snippet=_get_profile_snippet(session["user_id"], session["domain"]),
         history=_build_history(session_id),
-    )
-    scene = await agent_client.generate_scene(ctx)
+    ), next_number
+
+def _finalize_next(session_id: str, next_number: int, scene: SceneContent):
     simulation_scenes.save_scene(str(uuid.uuid4()), session_id, next_number, scene.model_dump())
     simulation_sessions.bump_scene_number(session_id, next_number)
 
+async def request_next_scene(session_id: str, current_user: dict) -> dict:
+    ctx, next_number = await asyncio.to_thread(_prepare_next, session_id, current_user)
+    scene = await agent_client.generate_scene(ctx)
+    await asyncio.to_thread(_finalize_next, session_id, next_number, scene)
     return {"session_id": session_id, "scene": scene.model_dump()}
 
 
