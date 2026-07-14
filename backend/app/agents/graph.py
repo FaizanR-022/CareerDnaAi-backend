@@ -58,7 +58,7 @@ def wait_for_next_scene_node(state: SimulationState) -> dict:
     client to request the next scene.
     """
     interrupt("Waiting for next scene trigger")
-    return {}
+    return {"loop_count": state.get("loop_count", 0)}
 
 # ─── ROUTING ─────────────────────────────────────────────────────────────────
 
