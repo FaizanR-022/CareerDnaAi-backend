@@ -398,8 +398,7 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
     try:
         response = await acall_llm_with_retry(
             llm,
-            [SystemMessage(content=prompt)],
-            stop=["```"]  # STOP SEQUENCE — strips markdown backticks
+            [SystemMessage(content=prompt)]
         )
         raw = response.content.strip()
         raw = raw.replace("```json", "").replace("```", "").strip()

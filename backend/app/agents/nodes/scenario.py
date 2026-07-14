@@ -373,8 +373,7 @@ async def scenario_node(state: SimulationState) -> dict:
         try:
             response = await acall_llm_with_retry(
                 llm,
-                [SystemMessage(content=prompt)],
-                stop=["```"],  # STOP SEQUENCE — strip markdown backticks
+                [SystemMessage(content=prompt)]
             )
             raw = response.content.strip()
             raw = raw.replace("```json", "").replace("```", "").strip()
@@ -525,8 +524,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
     try:
         response = await acall_llm_with_retry(
             llm,
-            [SystemMessage(content=prompt)],
-            stop=["```"]  # STOP SEQUENCE — strips markdown backticks
+            [SystemMessage(content=prompt)]
         )
         raw = response.content.strip()
         # Also strip manually in case stop sequence didn't catch it

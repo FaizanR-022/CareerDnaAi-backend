@@ -338,7 +338,7 @@ Return ONLY valid JSON, no markdown:
 {{"questions": [{{"question": "...", "options": ["...", "...", "...", "..."], "correct_option_index": 0}}]}}"""
 
     try:
-        response = await acall_llm_with_retry(llm, [SystemMessage(content=prompt)], stop=["```"])
+        response = await acall_llm_with_retry(llm, [SystemMessage(content=prompt)])
         raw = response.content.strip().replace("```json","").replace("```","").strip()
         result = json.loads(raw)
         questions = result.get("questions", [])
