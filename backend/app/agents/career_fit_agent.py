@@ -116,8 +116,8 @@ def aggregate_scores_from_sessions(sessions_data: list[dict]) -> dict[str, float
     Aggregates dimension scores across multiple completed sessions.
 
     Args:
-        sessions_data: list of session dicts, each with a "scores" key
-            e.g. [{"domain": "product_manager", "scores": {"analytical_reasoning": 72, ...}}, ...]
+        sessions_data: list of session dicts, each with an "evaluations" key
+            e.g. [{"domain": "product_manager", "evaluations": [{"result": {"dimension_scores": {"analytical_reasoning": 72, ...}}}]}, ...]
 
     Returns:
         Aggregated dimension scores dict
@@ -125,12 +125,15 @@ def aggregate_scores_from_sessions(sessions_data: list[dict]) -> dict[str, float
     totals: dict[str, list[float]] = {}
 
     for session in sessions_data:
-        scores = session.get("scores", {})
-        for dim, val in scores.items():
-            if val and val > 0:
-                if dim not in totals:
-                    totals[dim] = []
-                totals[dim].append(float(val))
+        evals = session.get("evaluations", [])
+        for ev in evals:
+            res = ev.get("result", {})
+            dim_scores = res.get("dimension_scores", {})
+            for dim, val in dim_scores.items():
+                if val and val > 0:
+                    if dim not in totals:
+                        totals[dim] = []
+                    totals[dim].append(float(val))
 
     return {
         dim: round(sum(vals) / len(vals), 1)
@@ -139,13 +142,13 @@ def aggregate_scores_from_sessions(sessions_data: list[dict]) -> dict[str, float
     }
 
 
-def build_evidence_citations(decisions_log: list[dict]) -> dict[str, list[str]]:
+def build_evidence_citations(evaluations: list[dict]) -> dict[str, list[str]]:
     """
-    Maps each dimension to the decision IDs that contributed most to it.
+    Maps each dimension to the evaluation IDs that contributed most to it.
     Used by Report Agent to cite specific moments in the Career DNA Report.
 
     Returns:
-        {"analytical_reasoning": ["decision_id_1", "decision_id_2"], ...}
+        {"analytical_reasoning": ["scene_evaluation_id_1", "scene_evaluation_id_2"], ...}
     """
     citations: dict[str, list[str]] = {
         "analytical_reasoning": [],
@@ -155,9 +158,10 @@ def build_evidence_citations(decisions_log: list[dict]) -> dict[str, list[str]]:
         "decisiveness": [],
     }
 
-    for i, decision in enumerate(decisions_log):
-        dim_scores = decision.get("dimension_scores", {})
-        decision_ref = decision.get("id", f"decision_{i}")
+    for ev in evaluations:
+        res = ev.get("result", {})
+        dim_scores = res.get("dimension_scores", {})
+        decision_ref = ev.get("scene_evaluation_id", "unknown")
 
         for dim, score in dim_scores.items():
             if score and score >= 65 and dim in citations:
@@ -183,19 +187,26 @@ def generate_fit_report_data(user_id: str, sessions: list[dict]) -> dict:
     dimension_scores = aggregate_scores_from_sessions(sessions)
     fit_result = compute_career_fit(dimension_scores)
 
-    all_decisions: list[dict] = []
+    all_evals: list[dict] = []
     for session in sessions:
-        all_decisions.extend(session.get("decisions_log", []))
-    evidence = build_evidence_citations(all_decisions)
+        all_evals.extend(session.get("evaluations", []))
+    evidence = build_evidence_citations(all_evals)
+
+    strengths = [dim for dim, val in dimension_scores.items() if val >= 75]
+    growth_areas = [dim for dim, val in dimension_scores.items() if val < 40]
 
     return {
         "user_id": user_id,
         "domain_fit_scores": fit_result["domain_fit_scores"],
         "ranked_domains": fit_result["ranked_domains"],
+        "top_recommendation": fit_result["top_domain"],
         "top_domain": fit_result["top_domain"],
         "confidence_level": fit_result["confidence_level"],
         "dimension_scores": dimension_scores,
         "evidence_citations": evidence,
+        "summary_narrative": "AI-generated qualitative summary of the student's overall performance across dimensions and domains.",
+        "strengths": strengths,
+        "growth_areas": growth_areas,
         "sessions_count": len(sessions),
-        "domains_simulated": list({s["domain"] for s in sessions}),
+        "domains_simulated": list({s["domain"] for s in sessions if "domain" in s}),
     }

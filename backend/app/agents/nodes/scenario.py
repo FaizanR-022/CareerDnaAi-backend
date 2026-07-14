@@ -460,6 +460,11 @@ HARD CONSTRAINTS FOR NPCs — NEVER CONTRADICT:
     # Context component 4 — rolling history (last 2 only for token control)
     history_summary = _build_history_summary(history)
 
+    primary_npc_id = active_npcs[0] if active_npcs else "sara_khan"
+    primary_npc = npc_map.get(primary_npc_id, {})
+    primary_npc_name = primary_npc.get("name", "Sara Khan")
+    primary_npc_role = primary_npc.get("role", "Head of Marketing")
+
     prompt = f"""You are generating scene {scene_number} of a {domain.replace('_', ' ').title()} career simulation.
 
 COMPONENT 1 — DOMAIN CONTEXT:
@@ -496,13 +501,13 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
     "scene_type": "{scene_config['type']}"
   }},
   "characters": [
-    {{"id": "sara_khan", "name": "Sara Khan", "role": "Head of Marketing", "initial_trust": 50}}
+    {{"id": "{primary_npc_id}", "name": "{primary_npc_name}", "role": "{primary_npc_role}", "initial_trust": 50}}
   ],
   "messages": [
     {{
-      "sender": "Sara Khan",
+      "sender": "{primary_npc_name}",
       "channel": "developer", 
-      "content": "Sara's opening message — in character, urgent, references the referral feature",
+      "content": "{primary_npc_name}'s opening message — in character, urgent, references the relevant context",
       "time_offset_minutes": 0
     }}
   ],
@@ -532,19 +537,3 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
         logger.error(f"scenario_node LLM error: {e}")
         fallback = _fallback_scene(scene_number, domain, difficulty)
         return {"current_scene": fallback, "is_final_scene": fallback["is_final_scene"]}
-
-
-def _get_npc_trust(state: SimulationState, npc_id: str) -> int:
-    # Pull NPC trust from history's last evaluation npc_state_updates
-    history = state.get("history", [])
-    if not history:
-        return 50
-    for entry in reversed(history):
-        evaluation = entry.get("evaluation", {})
-        if not evaluation:
-            continue
-        for update in evaluation.get("npc_state_updates", []):
-            if update.get("npc_id") == npc_id:
-                return update.get("trust_score", 50)
-    return 50
-

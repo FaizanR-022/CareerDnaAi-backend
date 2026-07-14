@@ -323,6 +323,12 @@ async def evaluation_node(state: SimulationState) -> dict:
         else PM_FEW_SHOT
     )
 
+    characters = scene.get("characters", [])
+    if characters:
+        primary_npc_id = characters[0].get("id", "sara_khan")
+    else:
+        primary_npc_id = "sara_khan"
+
     # Scoring thresholds explanation for the LLM
     thresholds = """
 SCORING THRESHOLDS:
@@ -377,7 +383,7 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
   "justification": "one sentence max 20 words",
   "npc_state_updates": [
     {{
-      "npc_id": "sara_khan",
+      "npc_id": "{primary_npc_id}",
       "trust_score": <int 0-100>,
       "sentiment": "positive" | "neutral" | "negative",
       "memory_summary": "one sentence summarizing this interaction for NPC memory"

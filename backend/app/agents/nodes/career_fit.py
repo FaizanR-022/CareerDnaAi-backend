@@ -98,8 +98,17 @@ def career_fit_node(state: SimulationState) -> dict:
     current_difficulty = state.get("difficulty", "medium")
     history = state.get("history", [])
     
-    # Compute the multivariable weighted suitability matrices
-    fit_matrix = _compute_fit_matrix(history)
+    # Append the current scene and evaluation to history
+    new_history = list(history)
+    current_scene = state.get("current_scene")
+    if current_scene and current_evaluation:
+        new_history.append({
+            "scene": current_scene,
+            "evaluation": current_evaluation
+        })
+        
+    # Compute the multivariable weighted suitability matrices using the updated history
+    fit_matrix = _compute_fit_matrix(new_history)
     
     # Automated Remediation Loop Engine
     if overall_score < 40 and not is_final and loop_count < 2:
@@ -115,7 +124,8 @@ def career_fit_node(state: SimulationState) -> dict:
     update = {
         "should_loop_back": should_loop_back,
         "fit_scores": fit_matrix,
-        "career_fit_matrix": fit_matrix
+        "career_fit_matrix": fit_matrix,
+        "history": new_history
     }
     
     if should_loop_back:
