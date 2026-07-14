@@ -532,19 +532,3 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
         logger.error(f"scenario_node LLM error: {e}")
         fallback = _fallback_scene(scene_number, domain, difficulty)
         return {"current_scene": fallback, "is_final_scene": fallback["is_final_scene"]}
-
-
-def _get_npc_trust(state: SimulationState, npc_id: str) -> int:
-    # Pull NPC trust from history's last evaluation npc_state_updates
-    history = state.get("history", [])
-    if not history:
-        return 50
-    for entry in reversed(history):
-        evaluation = entry.get("evaluation", {})
-        if not evaluation:
-            continue
-        for update in evaluation.get("npc_state_updates", []):
-            if update.get("npc_id") == npc_id:
-                return update.get("trust_score", 50)
-    return 50
-
