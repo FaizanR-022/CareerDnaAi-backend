@@ -201,6 +201,11 @@ async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
     """
     config = _get_config(ctx.simulation_session_id)
     student_response = ctx.user_response.raw_text or ""
+    if ctx.user_response.structured:
+        import json
+        structured_str = json.dumps(ctx.user_response.structured, indent=2)
+        student_response += f"\n\n[Interactive Board Data Provided by User]:\n{structured_str}"
+    
     graph = get_graph()
 
     # Ensure a checkpoint exists before resuming
