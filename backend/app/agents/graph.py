@@ -1,24 +1,62 @@
+"""
+graph.py — Single LangGraph graph with interrupt() for student input pause.
+
+Flow:
+  supervisor_node → scenario_node → [interrupt: wait for student]
+  → evaluation_node → career_fit_node → scenario_node (loop) | report_node | END
+"""
+
+from __future__ import annotations
 import logging
-import os
-
-logger = logging.getLogger(__name__)
-
+from typing import Any
 from langgraph.graph import StateGraph, START, END
+from langgraph.types import interrupt, Command
 from app.agents.state import SimulationState
+from app.agents.nodes.supervisor import supervisor_node
 from app.agents.nodes.scenario import scenario_node
 from app.agents.nodes.evaluation import evaluation_node
 from app.agents.nodes.career_fit import career_fit_node
+from app.agents.nodes.report import report_node
 from app.schemas.agent_contracts import (
-    EvaluationContext, EvaluationResult,
-    FitReportContext, FitReportResult,
-    MCQGenerationContext, MCQGenerationResult,
     SceneContent, SceneGenerationContext,
+    EvaluationResult, EvaluationContext,
+    FitReportResult, FitReportContext,
+    MCQGenerationResult, MCQGenerationContext,
 )
 
-from app.agents.nodes.supervisor import supervisor_node
-from app.agents.nodes.report import report_node
+logger = logging.getLogger(__name__)
 
-def route_after_career_fit(state: SimulationState):
+# ─── CHECKPOINTER ────────────────────────────────────────────────────────────
+
+def _build_checkpointer():
+    try:
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        from app.core.config import get_settings
+        settings = get_settings()
+        db_url = settings.database_url
+        checkpointer = AsyncPostgresSaver.from_conn_string(db_url)
+        logger.info("Using PostgresSaver checkpointer")
+        return checkpointer
+    except Exception as e:
+        logger.warning(f"PostgresSaver unavailable: {e} — using MemorySaver")
+        from langgraph.checkpoint.memory import MemorySaver
+        return MemorySaver()
+
+# ─── INTERRUPT NODE ──────────────────────────────────────────────────────────
+
+async def human_input_node(state: SimulationState) -> dict:
+    """
+    Pauses graph execution here and waits for student response.
+    The checkpointer saves full state at this point.
+    When graph.invoke(Command(resume=student_response)) is called,
+    execution continues from here with student_response in state.
+    """
+    student_response = interrupt("Waiting for student response")
+    return {"student_response": student_response}
+
+# ─── ROUTING ─────────────────────────────────────────────────────────────────
+
+def route_after_career_fit(state: SimulationState) -> str:
     if state.get("should_loop_back"):
         return "scenario_node"
     elif state.get("is_final_scene"):
@@ -26,86 +64,48 @@ def route_after_career_fit(state: SimulationState):
     else:
         return END
 
-# TWO SEPARATE GRAPHS:
-# 1. scene_graph — invoked by generate_scene()
-# 2. eval_graph  — invoked by evaluate_response()
-# This is because LangGraph needs a clean entry point per call type.
+# ─── COMPILE GRAPH ───────────────────────────────────────────────────────────
 
-# Scene generation graph
-scene_builder = StateGraph(SimulationState)
-scene_builder.add_node("supervisor_node", supervisor_node)
-scene_builder.add_node("scenario_node", scenario_node)
-scene_builder.add_edge(START, "supervisor_node")
-scene_builder.add_edge("supervisor_node", "scenario_node")
-scene_builder.add_edge("scenario_node", END)
+def build_graph(checkpointer):
+    builder = StateGraph(SimulationState)
 
-# Evaluation graph (includes feedback loop)
-eval_builder = StateGraph(SimulationState)
-eval_builder.add_node("evaluation_node", evaluation_node)
-eval_builder.add_node("career_fit_node", career_fit_node)
-eval_builder.add_node("scenario_node", scenario_node)
-eval_builder.add_node("report_node", report_node)
-eval_builder.add_edge(START, "evaluation_node")
-eval_builder.add_edge("evaluation_node", "career_fit_node")
-eval_builder.add_conditional_edges(
-    "career_fit_node",
-    route_after_career_fit,
-    {
-        "scenario_node": "scenario_node",
-        "report_node": "report_node",
-        END: END,
-    }
-)
-eval_builder.add_edge("scenario_node", END)
-eval_builder.add_edge("report_node", END)
+    builder.add_node("supervisor_node", supervisor_node)
+    builder.add_node("scenario_node", scenario_node)
+    builder.add_node("human_input_node", human_input_node)
+    builder.add_node("evaluation_node", evaluation_node)
+    builder.add_node("career_fit_node", career_fit_node)
+    builder.add_node("report_node", report_node)
 
-
-# ─── CHECKPOINTER SETUP ────────────────────────────────────────────────────────
-# Primary: PostgresSaver using SUPABASE_CONN_STRING connection string.
-# Fallback: MemorySaver when the env var or DB is unavailable (dev / CI).
-
-def _build_graphs_with_postgres(conn_str: str):
-    """Compile both graphs using a PostgresSaver connection pool."""
-    # Lazy import — package is optional (langgraph-checkpoint-postgres)
-    from langgraph.checkpoint.postgres import PostgresSaver  # noqa: PLC0415
-    with PostgresSaver.from_conn_string(conn_str) as saver:
-        # Run DB migrations for internal checkpointer tables automatically
-        saver.setup()
-        sg = scene_builder.compile(checkpointer=saver)
-        eg = eval_builder.compile(checkpointer=saver)
-    return sg, eg
-
-
-def _build_graphs_with_memory():
-    """Fallback: compile both graphs using in-process MemorySaver."""
-    from langgraph.checkpoint.memory import MemorySaver
-    saver = MemorySaver()
-    sg = scene_builder.compile(checkpointer=saver)
-    eg = eval_builder.compile(checkpointer=saver)
-    return sg, eg
-
-
-supabase_conn_str: str | None = os.environ.get("SUPABASE_CONN_STRING")
-
-try:
-    if not supabase_conn_str:
-        raise ValueError("SUPABASE_CONN_STRING environment variable is not set.")
-    scene_graph, eval_graph = _build_graphs_with_postgres(supabase_conn_str)
-    logger.info("PostgresSaver checkpointer initialised successfully.")
-except Exception as e:
-    logger.warning(
-        f"PostgresSaver unavailable ({e}) — falling back to MemorySaver. "
-        "Set SUPABASE_CONN_STRING in .env for persistent checkpointing."
+    builder.add_edge(START, "supervisor_node")
+    builder.add_edge("supervisor_node", "scenario_node")
+    builder.add_edge("scenario_node", "human_input_node")   # pause after scene
+    builder.add_edge("human_input_node", "evaluation_node") # resume with response
+    builder.add_edge("evaluation_node", "career_fit_node")
+    builder.add_conditional_edges(
+        "career_fit_node",
+        route_after_career_fit,
+        {
+            "scenario_node": "scenario_node",
+            "report_node": "report_node",
+            END: END,
+        }
     )
-    scene_graph, eval_graph = _build_graphs_with_memory()
+    builder.add_edge("report_node", END)
 
+    return builder.compile(checkpointer=checkpointer, interrupt_before=["human_input_node"])
 
+checkpointer = _build_checkpointer()
+graph = build_graph(checkpointer)
 
-# --- Entry points called by agent_client.py ---
+# ─── HELPERS ─────────────────────────────────────────────────────────────────
 
-async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
-    """Convert SceneGenerationContext to SimulationState and run scene graph."""
-    state = {
+def _ctx_to_state(ctx: SceneGenerationContext) -> dict:
+    """
+    Convert SceneGenerationContext to initial SimulationState.
+    Only used for FIRST scene (no prior state in checkpointer).
+    For subsequent calls the checkpointer restores state automatically.
+    """
+    return {
         "simulation_session_id": ctx.simulation_session_id,
         "user_id": ctx.user_id,
         "domain": ctx.domain,
@@ -116,10 +116,12 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
             "core_interests": ctx.user_profile_snippet.core_interests,
         },
         "history": [
-            {"scene": h.scene.model_dump(), "evaluation": h.evaluation.model_dump()}
+            {
+                "scene": h.scene.model_dump(),
+                "evaluation": h.evaluation.model_dump()
+            }
             for h in (ctx.history or [])
         ],
-        # Defaults
         "active_domain": ctx.domain,
         "current_scene": None,
         "current_evaluation": None,
@@ -129,488 +131,188 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
         "fit_scores": None,
         "report": None,
         "is_final_scene": False,
-        "loop_count": 0,
+        "loop_count": 0,        # only 0 on first scene — checkpointer carries it after
         "student_response": "",
     }
-    config = {"configurable": {"thread_id": ctx.simulation_session_id}}
-    result = await scene_graph.ainvoke(state, config=config)
+
+def _get_config(session_id: str) -> dict:
+    """Thread config for checkpointer — ties all invocations to one session."""
+    return {"configurable": {"thread_id": session_id}}
+
+# ─── ENTRY POINTS ────────────────────────────────────────────────────────────
+
+async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
+    """
+    Called by agent_client.generate_scene().
+    First scene: initialise fresh state and run graph to interrupt.
+    Subsequent scenes: resume from checkpointer state, 
+    continuing after career_fit_node decided more scenes needed.
+    """
+    config = _get_config(ctx.simulation_session_id)
+
+    # Check if there is existing checkpointed state for this session
+    try:
+        existing = await graph.aget_state(config)
+        has_state = existing and existing.values
+    except Exception:
+        has_state = False
+
+    if not has_state:
+        # First scene — start fresh
+        initial_state = _ctx_to_state(ctx)
+        result = await graph.ainvoke(initial_state, config=config)
+    else:
+        # Subsequent scene — graph already paused after career_fit_node
+        # Update scene_number in state then resume
+        await graph.aupdate_state(
+            config,
+            {"scene_number": ctx.scene_number, "difficulty": ctx.difficulty}
+        )
+        result = await graph.ainvoke(None, config=config)
+
     scene_dict = result.get("current_scene", {})
-    # Convert dict to SceneContent
+    if not scene_dict:
+        raise ValueError("scenario_node returned no scene")
     return SceneContent(**scene_dict)
 
 async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
-    """Convert EvaluationContext to SimulationState and run eval graph."""
-    state = {
-        "simulation_session_id": ctx.simulation_session_id,
-        "user_id": ctx.user_id,
-        "domain": ctx.domain,
-        "difficulty": ctx.difficulty,
-        "scene_number": ctx.scene_number,
-        "user_profile": {},
-        "history": [
-            {"scene": h.scene.model_dump(), "evaluation": h.evaluation.model_dump()}
-            for h in (ctx.history or [])
-        ],
-        "current_scene": ctx.scene_content.model_dump(),
-        "student_response": ctx.user_response.raw_text or "",
-        # Defaults
-        "active_domain": ctx.domain,
-        "current_evaluation": None,
-        "latest_score": 0.0,
-        "should_loop_back": False,
-        "lowered_difficulty": None,
-        "fit_scores": None,
-        "report": None,
-        "is_final_scene": ctx.scene_content.is_final_scene,
-        "loop_count": 0,
-    }
-    config = {"configurable": {"thread_id": ctx.simulation_session_id}}
-    result = await eval_graph.ainvoke(state, config=config)
+    """
+    Called by agent_client.evaluate_response().
+    Resumes the graph from human_input_node with the student's response.
+    The checkpointer provides loop_count, npc_states, history — no manual rebuild.
+    """
+    config = _get_config(ctx.simulation_session_id)
+    student_response = ctx.user_response.raw_text or ""
+
+    # Resume graph from interrupt with student response
+    result = await graph.ainvoke(
+        Command(resume=student_response),
+        config=config
+    )
+
     evaluation_dict = result.get("current_evaluation", {})
-    if "extra" not in evaluation_dict:
-        evaluation_dict["extra"] = {}
-    if result.get("lowered_difficulty"):
-        evaluation_dict["extra"]["lowered_difficulty"] = result["lowered_difficulty"]
+    if not evaluation_dict:
+        raise ValueError("evaluation_node returned no evaluation")
     return EvaluationResult(**evaluation_dict)
 
 async def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
     """
-    Constructs the FitReportResult by aggregating student history, calculating fit vectors,
-    and invoking the LLM qualitative evaluator.
+    Called by agent_client.generate_fit_report().
+    Reads from checkpointed state or builds from ctx.
     """
-    from app.agents.career_fit_agent import generate_fit_report_data
-    from app.agents.nodes.report import report_node
+    config = _get_config(ctx.sessions[0].simulation_session_id if ctx.sessions else "report")
+    try:
+        existing = await graph.aget_state(config)
+        result = existing.values if existing else {}
+    except Exception:
+        result = {}
 
-    # Convert summaries list back to sessions database shapes for generate_fit_report_data
-    sessions_payload = []
-    history_entries = []
-    for session in ctx.sessions:
-        decisions_log = []
-        for scored in session.evaluations:
-            res = scored.result
-            decisions_log.append({
-                "id": scored.scene_evaluation_id,
-                "dimension_scores": res.dimension_scores,
-            })
-            # Also keep a flat state history structure to feed the report LLM node
-            history_entries.append({
-                "scene": {
-                    "scene_number": scored.scene_number,
-                    "title": f"Scene {scored.scene_number}",
-                },
-                "evaluation": {
-                    "scene_evaluation_id": scored.scene_evaluation_id,
-                    "overall_score": res.overall_score,
-                    "dimension_scores": res.dimension_scores,
-                    "feedback_summary": res.feedback_summary,
-                    "npc_state_updates": res.npc_state_updates,
-                }
-            })
+    report_dict = result.get("report")
+    if report_dict:
+        return FitReportResult(**report_dict)
 
-        sessions_payload.append({
-            "domain": session.domain,
-            "scores": {
-                # Map averages from session evaluation logs
-                dim: sum(e.result.dimension_scores.get(dim, 50.0) for e in session.evaluations) / max(len(session.evaluations), 1)
-                for dim in ["analytical_reasoning", "ambiguity_tolerance", "communication_clarity", "attention_to_detail", "decisiveness"]
-            },
-            "decisions_log": decisions_log
-        })
-
-    # Get fit result using the deterministic aggregation engine
-    fit_data = generate_fit_report_data(ctx.user_id, sessions_payload)
-
-    # Invoke report LLM node to get the qualitative narration block
-    state_mock = {"history": history_entries}
-    report_result = await report_node(state_mock)
-    llm_report = report_result.get("report", {})
-
-    return FitReportResult(
-        domain_fit_scores=fit_data["domain_fit_scores"],
-        ranked_domains=fit_data["ranked_domains"],
-        top_recommendation=fit_data["top_domain"],
-        confidence_level=fit_data["confidence_level"],
-        evidence_citations=fit_data["evidence_citations"],
-        summary_narrative=llm_report.get("summary_narrative", "Baseline capabilites match requirements."),
-        strengths=llm_report.get("strengths", []),
-        growth_areas=llm_report.get("growth_areas", []),
-    )
-
+    # Fallback: call report_node directly with ctx data
+    from app.agents.nodes.report import generate_fit_report_from_ctx
+    return await generate_fit_report_from_ctx(ctx)
 
 async def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
+    """
+    Called by agent_client.generate_mcqs().
+    Standalone — does not use the graph.
+    """
     import json
-    import logging
-    from app.agents.llm import get_llm
+    from app.agents.llm import get_llm, acall_llm_with_retry
     from langchain_core.messages import SystemMessage
-    logger = logging.getLogger(__name__)
 
     domain = ctx.chosen_field
-
-    FALLBACK_QUESTIONS = {
-        "product_manager": [
-            {
-                "question": "A stakeholder demands a new feature mid-sprint. The sprint is already over capacity. What is the most appropriate PM response?",
-                "options": [
-                    "Say yes and tell engineers they need to work over the weekend",
-                    "Say no immediately without discussing it",
-                    "Acknowledge the request, show the current sprint commitments, and ask what should be deprioritized to fit it in",
-                    "Quietly add it to the backlog and ignore the stakeholder"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "Engineering team says a feature will take 4 weeks. Sales promised it to a client in 2 weeks. What do you do?",
-                "options": [
-                    "Tell engineering to finish it in 2 weeks no matter what",
-                    "Work with engineering to descope non-essential requirements to build an MVP in 2 weeks",
-                    "Tell sales it's impossible and refuse to help",
-                    "Add more engineers to the project to double the speed"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "You are writing a PRD (Product Requirements Document). What is the most important section to include?",
-                "options": [
-                    "The exact code architecture the engineers should use",
-                    "The exact CSS hex codes for the UI",
-                    "The core user problem, success metrics, and acceptance criteria",
-                    "A list of all competitors in the market"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "A stakeholder says you committed to a full feature scope but you only committed to exploring it. What is the best response?",
-                "options": [
-                    "Agree with them — you must have miscommunicated",
-                    "Deny it happened and move on",
-                    "Clarify what was actually said without blaming them, using facts",
-                    "Escalate to legal immediately"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "Why should a PM define 'out of scope' explicitly in the PRD?",
-                "options": [
-                    "To fill out the document template",
-                    "To prevent scope creep and manage stakeholder expectations clearly",
-                    "To give engineers fewer tasks",
-                    "Legal requirement for product documentation"
-                ],
-                "correct_option_index": 1
-            }
-        ],
-        "sqa_engineer": [
-            {
-                "question": "You find a checkout bug that affects only Safari mobile users. Dan says it is not a blocker. What do you do?",
-                "options": [
-                    "Accept Dan's assessment — he built it",
-                    "Provide reproduction steps and argue severity based on user impact and revenue risk",
-                    "Close the ticket — too few users affected",
-                    "Immediately escalate to the PM without discussing with Dan"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "A developer asks you to test their feature but provides no PRD or requirements. What is your first step?",
-                "options": [
-                    "Start testing randomly and hope you find bugs",
-                    "Refuse to test it until a full 50-page document is written",
-                    "Ask the developer for a quick overview of expected behavior and edge cases before starting",
-                    "Write the code for them"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "You find a critical bug in production right after a release. What is the priority?",
-                "options": [
-                    "Find out which developer caused it and blame them",
-                    "Write a 10-page post-mortem document",
-                    "Provide clear reproduction steps and logs so the team can hotfix or rollback immediately",
-                    "Wait until tomorrow to report it"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "What is the primary purpose of regression testing?",
-                "options": [
-                    "To find completely new features to build",
-                    "To ensure that recent code changes haven't broken previously working functionality",
-                    "To test the speed of the application",
-                    "To check if the UI looks pretty"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "A bug is intermittent (only happens 10% of the time). How do you log it?",
-                "options": [
-                    "Ignore it because it's too hard to reproduce",
-                    "Log it with exact environment details, frequency (1/10), and all console logs available",
-                    "Tell the developer it's completely broken",
-                    "Wait until it happens 100% of the time before logging"
-                ],
-                "correct_option_index": 1
-            }
-        ],
-        "data_analyst": [
-            {
-                "question": "The VP of Analytics says signups dropped 20% yesterday. What is your first action?",
-                "options": [
-                    "Tell marketing their campaign failed",
-                    "Check if the tracking pixel or data pipeline broke before assuming user behavior changed",
-                    "Change the dashboard to hide the drop",
-                    "Run a machine learning model to predict tomorrow's signups"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "You find a strong correlation between users who change their profile picture and users who buy subscriptions. What should you tell the PM?",
-                "options": [
-                    "We must force everyone to change their profile picture to increase revenue",
-                    "Correlation does not imply causation; we should run an A/B test to see if prompting a picture change drives revenue",
-                    "The data is probably wrong",
-                    "Profile pictures are the only thing that matters in the app"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "A dataset contains 5% missing values in a critical revenue column. How do you handle it for a high-stakes financial report?",
-                "options": [
-                    "Fill them all with zeroes",
-                    "Delete the rows entirely without telling anyone",
-                    "Investigate why they are missing, document the gap, and exclude/impute carefully while noting the assumption in the report",
-                    "Make up random numbers to fill the gaps"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "You need to explain a complex statistical model to a non-technical stakeholder. How do you approach it?",
-                "options": [
-                    "Use as much math jargon as possible to sound smart",
-                    "Focus on the business impact, actionable insights, and confidence level rather than the math",
-                    "Give them the raw Python code to read",
-                    "Refuse to explain it because they wouldn't understand"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "What is the risk of presenting data without confidence intervals or error margins?",
-                "options": [
-                    "It makes the dashboard load slower",
-                    "Stakeholders might make rigid decisions based on noisy data, believing it to be absolute truth",
-                    "It takes too much time to calculate",
-                    "There is no risk; data is always perfect"
-                ],
-                "correct_option_index": 1
-            }
-        ],
-        "frontend_engineer": [
-            {
-                "question": "A client demands a 3D animation that causes the page to lag heavily on mobile. What do you do?",
-                "options": [
-                    "Implement it exactly as requested — it's their problem",
-                    "Refuse to do it and tell them they have bad taste",
-                    "Explain the performance impact and propose a lighter CSS alternative that achieves a similar feel",
-                    "Tell them mobile users don't matter"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "You are reviewing a PR that uses highly specific CSS selectors (e.g., `div#main .container ul li.active`). Why is this bad?",
-                "options": [
-                    "It makes the CSS file smaller",
-                    "It causes specificity wars, making styles incredibly hard to override later",
-                    "Browsers cannot read specific selectors",
-                    "It is actually the best practice"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "A visually impaired user cannot navigate a custom dropdown menu you built. What did you likely forget?",
-                "options": [
-                    "Adding more CSS colors",
-                    "Proper ARIA roles and keyboard (tab) navigation support",
-                    "Using a JavaScript framework like React",
-                    "Making the font bigger"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "Your Lighthouse performance score is 30/100 due to 'Largest Contentful Paint' (LCP). What is a common fix?",
-                "options": [
-                    "Add more JavaScript",
-                    "Optimize and compress the hero image, and ensure it loads early without render-blocking JS",
-                    "Delete all the CSS",
-                    "Tell the PM Lighthouse doesn't matter"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "The design team hands off a UI that requires 5 different custom font families. What is your concern?",
-                "options": [
-                    "It will look too beautiful",
-                    "Loading 5 web fonts will severely degrade page load speed and cause FOIT (Flash of Invisible Text)",
-                    "Refuse all 5 — performance is non-negotiable",
-                    "Add them and fix performance later"
-                ],
-                "correct_option_index": 1
-            }
-        ],
-        "backend_engineer": [
-            {
-                "question": "An API endpoint is responding in 8 seconds instead of the expected 200ms. What is your first step?",
-                "options": [
-                    "Rewrite the entire endpoint",
-                    "Add caching everywhere immediately",
-                    "Profile the request to find the bottleneck — database query, external API call, or computation",
-                    "Increase the server resources"
-                ],
-                "correct_option_index": 2
-            },
-            {
-                "question": "A database query returns correct results but takes 30 seconds on a large table. What is the most likely fix?",
-                "options": [
-                    "Rewrite the query in a different language",
-                    "Add an index on the columns used in WHERE and JOIN clauses",
-                    "Cache the entire table in memory",
-                    "Reduce the table size by deleting old records"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "You are designing an API endpoint that multiple services will call. What is most important?",
-                "options": [
-                    "Making it as fast as possible at the expense of clarity",
-                    "Consistent response shape, clear error codes, versioning, and documentation",
-                    "Using the newest technology stack available",
-                    "Minimizing the number of endpoints"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "A production deployment fails and users are impacted. What do you do first?",
-                "options": [
-                    "Fix the bug immediately in production",
-                    "Rollback to the last working version to restore service, then debug",
-                    "Tell users to clear their cache",
-                    "Wait to see if it resolves itself"
-                ],
-                "correct_option_index": 1
-            },
-            {
-                "question": "What is the purpose of database transactions?",
-                "options": [
-                    "To speed up database queries",
-                    "To ensure a group of operations either all succeed or all fail — maintaining data consistency",
-                    "To back up the database",
-                    "To allow multiple users to read simultaneously"
-                ],
-                "correct_option_index": 1
-            }
-        ]
-    }
 
     DOMAIN_MCQ_TOPICS = {
         "product_manager": {
             "focus": "sprint management, stakeholder communication, PRD writing, scope decisions, trade-off analysis",
-            "context": "You are testing whether a CS student understands real Product Manager responsibilities at a tech startup",
-            "example_topics": [
-                "How to respond when sprint is full and stakeholder requests new feature",
-                "Deciding which ticket to cut when capacity is over",
-                "Defining success metrics before committing to scope",
-                "Communicating decisions to engineering vs marketing stakeholders",
-                "MVP vs full feature scope decisions"
-            ]
+            "examples": ["sprint at capacity + new feature request", "cutting tickets", "defining success metrics", "communicating decisions to different stakeholders", "MVP vs full scope"]
         },
         "sqa_engineer": {
-            "focus": "bug severity classification, test case writing, regression testing, requirement gap analysis, cross-browser testing",
-            "context": "You are testing whether a CS student understands real Software QA Engineer responsibilities",
-            "example_topics": [
-                "Classifying bug severity (critical vs major vs minor)",
-                "Writing structured test cases with steps, expected, actual results",
-                "Handling developer pushback on bug severity",
-                "Finding requirement gaps before testing starts",
-                "Cross-environment testing prioritisation"
-            ]
+            "focus": "bug severity, test case writing, regression testing, requirement gaps, cross-browser testing",
+            "examples": ["classifying bug severity", "structured test cases", "developer pushback on severity", "finding spec gaps", "cross-environment priority"]
         },
         "data_analyst": {
-            "focus": "metric anomaly investigation, correlation vs causation, data cleaning, root cause analysis, presenting insights",
-            "context": "You are testing whether a CS student understands real Data Analyst responsibilities",
-            "example_topics": [
-                "First step when a key metric drops unexpectedly",
-                "Distinguishing tracking errors from real business problems",
-                "Handling confounding variables in analysis",
-                "Communicating uncertainty in data findings",
-                "Recommending action based on incomplete data"
-            ]
+            "focus": "metric anomaly investigation, correlation vs causation, data cleaning, root cause analysis",
+            "examples": ["sudden metric drop", "tracking error vs real problem", "confounding variables", "data quality issues", "recommending action on incomplete data"]
         },
         "frontend_engineer": {
-            "focus": "CSS debugging, responsive design, performance optimisation, accessibility, browser compatibility",
-            "context": "You are testing whether a CS student understands real Frontend Engineer responsibilities",
-            "example_topics": [
-                "Diagnosing layout issues across screen sizes",
-                "CSS specificity and inheritance conflicts",
-                "Image and asset optimisation for page speed",
-                "Semantic HTML and accessibility",
-                "Handling impossible client requests professionally"
-            ]
+            "focus": "CSS debugging, responsive design, performance, accessibility, browser compatibility",
+            "examples": ["layout issues across screen sizes", "CSS specificity", "page speed optimisation", "semantic HTML", "handling impossible client requests"]
         },
         "backend_engineer": {
-            "focus": "API design, database query optimisation, incident response, debugging slow endpoints, system architecture",
-            "context": "You are testing whether a CS student understands real Backend Engineer responsibilities",
-            "example_topics": [
-                "Diagnosing a slow API endpoint",
-                "Database indexing decisions",
-                "Rollback vs hotfix in a production incident",
-                "REST API design principles",
-                "Database transaction and consistency"
-            ]
+            "focus": "API design, database optimisation, incident response, debugging slow endpoints",
+            "examples": ["diagnosing slow API", "database indexing", "rollback vs hotfix", "REST API design", "database transactions"]
         }
     }
 
+    FALLBACK = {
+        "product_manager": [
+            {"question": "Sprint is full. Sara requests a new feature urgently. First step?", "options": ["Add it immediately", "Ask about success metrics and check capacity first", "Reject without explanation", "Escalate to CEO"], "correct_option_index": 1},
+            {"question": "Rayan says a feature needs 3 sprints. Sara says it must ship now. You:", "options": ["Side with Sara", "Side with Rayan", "Define minimum viable scope that satisfies the core goal", "Escalate to VP"], "correct_option_index": 2},
+            {"question": "A good PRD must always include:", "options": ["Technical implementation details", "Success metrics, scope, and out-of-scope items", "Marketing copy", "Sprint ticket IDs"], "correct_option_index": 1},
+            {"question": "Stakeholder says you committed to full scope but you only committed to exploring it. You:", "options": ["Agree — you must have miscommunicated", "Deny it", "Clarify what was actually said using facts, without blame", "Escalate to legal"], "correct_option_index": 2},
+            {"question": "Why define out-of-scope explicitly in the PRD?", "options": ["To fill the template", "To prevent scope creep and manage expectations", "To give engineers fewer tasks", "Legal requirement"], "correct_option_index": 1}
+        ],
+        "sqa_engineer": [
+            {"question": "Checkout bug affects only Safari mobile. Dan says not a blocker. You:", "options": ["Accept Dan's assessment", "Provide reproduction steps and argue severity based on revenue impact", "Close ticket", "Escalate without discussing"], "correct_option_index": 1},
+            {"question": "A bug report must always include:", "options": ["Just a title", "Steps to reproduce, expected, actual, severity, environment", "Your opinion on priority", "Developer's name"], "correct_option_index": 1},
+            {"question": "After a fix, copy-paste stops working in a previously working field. This is:", "options": ["A new feature request", "A regression bug", "Expected behavior", "Out of scope"], "correct_option_index": 1},
+            {"question": "Spec says session expires after inactivity but never defines inactivity. This is:", "options": ["Fine — developer decides", "A requirement gap to flag before testing", "Intentional ambiguity", "Out of scope for QA"], "correct_option_index": 1},
+            {"question": "Critical severity means:", "options": ["Minor UI issue", "Typo", "App crashes or core flow is completely blocked", "Feature enhancement"], "correct_option_index": 2}
+        ],
+        "data_analyst": [
+            {"question": "Key metric drops 40% overnight. First step?", "options": ["Alert CEO immediately", "Check pipeline and tracking for errors before drawing conclusions", "Assume real business problem", "Wait a week"], "correct_option_index": 1},
+            {"question": "Users who use feature X have higher retention. Most important question?", "options": ["How many use X?", "Is this correlation or causation?", "Who built X?", "Should we remove X?"], "correct_option_index": 1},
+            {"question": "Dataset has 15% null values in a key column. You:", "options": ["Delete all null rows immediately", "Investigate why nulls exist before deciding", "Replace all with zero", "Ignore them"], "correct_option_index": 1},
+            {"question": "New feature launched same week as major marketing campaign. Sales increased. You:", "options": ["Attribute to feature — timing matches", "Cannot isolate without controlled experiment", "Attribute to campaign only", "Run more SQL until one shows feature impact"], "correct_option_index": 1},
+            {"question": "Effective data visualisation means:", "options": ["Use as many chart types as possible", "One clear insight per chart with appropriate type", "Show all available data regardless of relevance", "Make it look impressive"], "correct_option_index": 1}
+        ],
+        "frontend_engineer": [
+            {"question": "Button renders 36px instead of 44px in Figma. First check?", "options": ["Report to designer", "CSS specificity conflicts, padding, box-sizing", "Hardcode height", "Ignore — close enough"], "correct_option_index": 1},
+            {"question": "Client wants component that works on all screen sizes. First question?", "options": ["What screen sizes do users actually use based on analytics?", "Is mobile more important?", "Should we build a separate app?", "How many breakpoints?"], "correct_option_index": 0},
+            {"question": "Page loads slowly on mobile. Most likely first thing to investigate?", "options": ["Server response time", "Unoptimised images, unused JS, render-blocking resources", "User's connection", "CSS animations"], "correct_option_index": 1},
+            {"question": "Semantic HTML means:", "options": ["Use only div and span", "Use elements that describe meaning (nav, article, button) for accessibility and SEO", "Write HTML comments", "Use latest HTML5 regardless of support"], "correct_option_index": 1},
+            {"question": "Client requests 5 new features on an already slow page. You:", "options": ["Add all 5 immediately", "Explain trade-off and ask which features deliver most value", "Refuse all 5", "Add them and fix performance later"], "correct_option_index": 1}
+        ],
+        "backend_engineer": [
+            {"question": "API endpoint responds in 8s instead of 200ms. First step?", "options": ["Rewrite endpoint", "Add caching everywhere", "Profile to find bottleneck — DB query, external call, or computation", "Increase server resources"], "correct_option_index": 2},
+            {"question": "DB query returns correct results but takes 30s on large table. Most likely fix?", "options": ["Rewrite in different language", "Add index on WHERE and JOIN columns", "Cache entire table", "Delete old records"], "correct_option_index": 1},
+            {"question": "Designing an API multiple services will call. Most important?", "options": ["Make it fast at expense of clarity", "Consistent response shape, clear error codes, versioning, documentation", "Use newest tech stack", "Minimise endpoints"], "correct_option_index": 1},
+            {"question": "Production deployment fails and users are impacted. First action?", "options": ["Fix bug in production immediately", "Rollback to last working version to restore service, then debug", "Tell users to clear cache", "Wait to see if it resolves"], "correct_option_index": 1},
+            {"question": "Database transactions exist to:", "options": ["Speed up queries", "Ensure a group of operations all succeed or all fail — maintaining consistency", "Back up the database", "Allow multiple users to read simultaneously"], "correct_option_index": 1}
+        ]
+    }
+
+    topic_config = DOMAIN_MCQ_TOPICS.get(domain, DOMAIN_MCQ_TOPICS["product_manager"])
     llm = get_llm(model="llama-3.1-8b-instant", temperature=0.3)
 
-    domain_config = DOMAIN_MCQ_TOPICS.get(domain, DOMAIN_MCQ_TOPICS["product_manager"])
-    
-    prompt = f"""Generate exactly 5 multiple-choice questions to assess a CS student's practical knowledge for a {domain.replace('_', ' ')} role at a tech startup.
+    prompt = f"""Generate exactly 5 multiple-choice questions testing practical {domain.replace('_', ' ')} workplace judgment.
 
-CONTEXT: {domain_config['context']}
+FOCUS: {topic_config['focus']}
+SCENARIO TYPES TO USE: {', '.join(topic_config['examples'])}
 
-FOCUS AREAS (questions must come from these topics):
-{chr(10).join(f'- {t}' for t in domain_config['example_topics'])}
-
-RULES:
-- Every question must be a realistic workplace scenario, not a definition or theory question
-- Wrong: "What does MOSCOW stand for?" (definition)  
-- Right: "Sprint is full, stakeholder requests new feature. What do you do first?" (scenario)
+Rules:
+- Every question must be a realistic workplace scenario
 - Each question has exactly 4 options (A, B, C, D)
-- Exactly one correct option per question
-- Questions must have clear correct answers that a competent professional would know
-- Difficulty: medium — not too easy, not trick questions
+- Exactly one correct option
+- Test real decision-making, not definitions
 
-Return ONLY valid JSON, no markdown, no backticks:
-{{
-  "questions": [
-    {{
-      "question": "realistic workplace scenario question",
-      "options": ["option A", "option B", "option C", "option D"],
-      "correct_option_index": <0, 1, 2, or 3>
-    }}
-  ]
-}}"""
+Return ONLY valid JSON, no markdown:
+{{"questions": [{{"question": "...", "options": ["...", "...", "...", "..."], "correct_option_index": 0}}]}}"""
 
     try:
-        response = await llm.ainvoke(
-            [SystemMessage(content=prompt)],
-            stop=["```"]
-        )
+        response = await acall_llm_with_retry(llm, [SystemMessage(content=prompt)], stop=["```"])
         raw = response.content.strip().replace("```json","").replace("```","").strip()
         result = json.loads(raw)
         questions = result.get("questions", [])
         if len(questions) != 5:
-            raise ValueError(f"Expected 5 questions, got {len(questions)}")
-        logger.info(f"MCQ generation succeeded for domain: {domain}")
+            raise ValueError(f"Expected 5, got {len(questions)}")
         return MCQGenerationResult(questions=questions)
     except Exception as e:
-        logger.error(f"MCQ generation failed: {{e}} — using fallback")
-        fallback = FALLBACK_QUESTIONS.get(domain, FALLBACK_QUESTIONS["product_manager"])
+        logger.error(f"MCQ generation failed: {e} — using fallback")
+        fallback = FALLBACK.get(domain, FALLBACK["product_manager"])
         return MCQGenerationResult(questions=fallback)
