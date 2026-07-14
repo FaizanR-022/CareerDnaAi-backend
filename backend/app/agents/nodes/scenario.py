@@ -40,10 +40,11 @@ def _build_history_summary(history: list) -> str:
         scene = h.get("scene", {})
         evaluation = h.get("evaluation", {})
         score = evaluation.get("overall_score", "N/A") if evaluation else "N/A"
+        user_text = h.get("student_response", "No response recorded.")
         parts.append(
             f"Scene {scene.get('scene_number', '?')} ({scene.get('title', '?')}): "
             f"student scored {score}/100\n"
-            f"<prior_student_response>{h.get('raw_text', '')}</prior_student_response>"
+            f"<prior_student_response>{user_text}</prior_student_response>"
         )
     return " | ".join(parts)
 
@@ -279,7 +280,7 @@ def _build_sqa_prompt(
         "hard": "Do not include a hint. Increase Dan's pressure to ship.",
     }
 
-    return f"""You are generating scene {scene_number} of 4 for a Software Quality Assurance Engineer career simulation.
+    return f"""You are generating scene {scene_number} for a Software Quality Assurance Engineer career simulation.
 
 COMPONENT 1 — DOMAIN CONTEXT:
 Domain: sqa_engineer | Scene type: {scene_config.get('type', 'bug_investigation')}
@@ -289,7 +290,7 @@ Context keys: {', '.join(context_keys)}
 
 COMPONENT 2 — SESSION STATE:
 Difficulty: {difficulty}
-Scene number: {scene_number} of 4
+Scene number: {scene_number}
 Dan's current trust level: {dan_trust}/100
 
 COMPONENT 3 — DAN NPC CONSTRAINTS (NEVER VIOLATE):
@@ -473,7 +474,7 @@ Domain: {domain} | Scene type: {scene_config['type']}
 
 COMPONENT 2 — SESSION STATE:
 Difficulty: {difficulty}
-Scene number: {scene_number} of 4
+Scene number: {scene_number}
 Student interests: {user_profile.get('core_interests', [])}
 Active NPCs and trust levels:
 {npc_context}

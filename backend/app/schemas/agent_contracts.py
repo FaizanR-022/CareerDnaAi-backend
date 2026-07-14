@@ -61,6 +61,7 @@ class EvaluationResult(BaseModel):
     feedback_summary: str
     behavioral_flags: list[str] = Field(default_factory=list)
     justification: str | None = None
+    reasoning: str | None = None
     npc_state_updates: list[NpcStateUpdate] = Field(default_factory=list)
     extra: dict = Field(default_factory=dict)
 
@@ -72,6 +73,7 @@ class HistoryEntry(BaseModel):
 
     scene: SceneContent
     evaluation: EvaluationResult
+    student_response: str | None = None
 
 
 class UserProfileSnippet(BaseModel):

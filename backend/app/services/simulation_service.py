@@ -58,10 +58,13 @@ def _build_history(session_id: str) -> list[HistoryEntry]:
         eval_row = evaluations.get(scene_row["id"])
         if not eval_row or not eval_row.get("evaluation"):
             continue  # not yet evaluated — excluded from history
+        user_response = eval_row.get("user_response", {}) or {}
+        raw_text = user_response.get("raw_text")
         history.append(
             HistoryEntry(
                 scene=SceneContent(**scene_row["content"]),
                 evaluation=EvaluationResult(**eval_row["evaluation"]),
+                student_response=raw_text
             )
         )
     return history

@@ -91,6 +91,12 @@ def list_sessions_for_user(user_id: str) -> list[dict]:
 
 def update_difficulty(session_id: str, new_difficulty: str) -> None:
     supabase = get_supabase()
-    supabase.table("simulation_sessions").update({
-        "difficulty": new_difficulty
-    }).eq("id", session_id).execute()
+    if not supabase:
+        if session_id in _memory_sessions:
+            _memory_sessions[session_id]["difficulty"] = new_difficulty
+        return
+    execute_or_503(
+        supabase.table("simulation_sessions")
+        .update({"difficulty": new_difficulty})
+        .eq("id", session_id)
+    )

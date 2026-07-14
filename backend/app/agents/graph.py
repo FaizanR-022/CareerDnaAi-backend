@@ -12,7 +12,6 @@ from typing import Any
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import interrupt, Command
 from app.agents.state import SimulationState
-from app.agents.nodes.supervisor import supervisor_node
 from app.agents.nodes.scenario import scenario_node
 from app.agents.nodes.evaluation import evaluation_node
 from app.agents.nodes.career_fit import career_fit_node
@@ -75,15 +74,13 @@ def route_after_career_fit(state: SimulationState) -> str:
 def build_graph(checkpointer):
     builder = StateGraph(SimulationState)
 
-    builder.add_node("supervisor_node", supervisor_node)
     builder.add_node("scenario_node", scenario_node)
     builder.add_node("human_input_node", human_input_node)
     builder.add_node("evaluation_node", evaluation_node)
     builder.add_node("career_fit_node", career_fit_node)
     builder.add_node("wait_for_next_scene_node", wait_for_next_scene_node)
 
-    builder.add_edge(START, "supervisor_node")
-    builder.add_edge("supervisor_node", "scenario_node")
+    builder.add_edge(START, "scenario_node")
     builder.add_edge("scenario_node", "human_input_node")   # pause after scene
     builder.add_edge("human_input_node", "evaluation_node") # resume with response
     builder.add_edge("evaluation_node", "career_fit_node")
@@ -99,8 +96,14 @@ def build_graph(checkpointer):
 
     return builder.compile(checkpointer=checkpointer)
 
-checkpointer = _build_checkpointer()
-graph = build_graph(checkpointer)
+_graph_instance = None
+
+def get_graph():
+    global _graph_instance
+    if _graph_instance is None:
+        checkpointer = _build_checkpointer()
+        _graph_instance = build_graph(checkpointer)
+    return _graph_instance
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -138,6 +141,7 @@ def _ctx_to_state(ctx: SceneGenerationContext) -> dict:
         "is_final_scene": False,
         "loop_count": 0,        # only 0 on first scene — checkpointer carries it after
         "student_response": "",
+        "npc_trust": {},
     }
 
 def _get_config(session_id: str) -> dict:
@@ -156,6 +160,7 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
     config = _get_config(ctx.simulation_session_id)
 
     # Check if there is existing checkpointed state for this session
+    graph = get_graph()
     try:
         existing = await graph.aget_state(config)
         has_state = existing and existing.values
@@ -167,6 +172,14 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
         initial_state = _ctx_to_state(ctx)
         result = await graph.ainvoke(initial_state, config=config)
     else:
+        # If the graph is not waiting at wait_for_next_scene_node, it means this
+        # scene was already generated and the DB just failed to save it previously.
+        # Return the cached scene to allow the DB to catch up.
+        if "wait_for_next_scene_node" not in existing.next:
+            scene_dict = existing.values.get("current_scene", {})
+            if scene_dict:
+                return SceneContent(**scene_dict)
+
         # Subsequent scene — graph already paused at wait_for_next_scene_node
         # Update scene_number in state then resume
         await graph.aupdate_state(
@@ -188,6 +201,7 @@ async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
     """
     config = _get_config(ctx.simulation_session_id)
     student_response = ctx.user_response.raw_text or ""
+    graph = get_graph()
 
     # Ensure a checkpoint exists before resuming
     try:
@@ -197,7 +211,14 @@ async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
         has_state = False
 
     if not has_state:
-        raise ValueError(f"Cannot evaluate response: no active graph state found for session {ctx.simulation_session_id}")
+        raise RuntimeError("No checkpoint found for evaluation step. The graph must be initialized via generate_scene first.")
+
+    # If the graph is not waiting at human_input_node, it means this evaluation
+    # already ran, but the DB failed to save it previously. Return the cached eval.
+    if "human_input_node" not in existing.next:
+        evaluation_dict = existing.values.get("current_evaluation", {})
+        if evaluation_dict:
+            return EvaluationResult(**evaluation_dict)
 
     # Resume graph from interrupt with student response
     result = await graph.ainvoke(

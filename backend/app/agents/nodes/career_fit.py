@@ -4,43 +4,7 @@ from app.agents.state import SimulationState
 
 logger = logging.getLogger(__name__)
 
-DOMAIN_WEIGHTS = {
-    "product_manager": {
-        "analytical_reasoning": 0.20,
-        "ambiguity_tolerance": 0.30,
-        "communication_clarity": 0.25,
-        "attention_to_detail": 0.10,
-        "decisiveness": 0.15
-    },
-    "sqa_engineer": {
-        "analytical_reasoning": 0.20,
-        "ambiguity_tolerance": 0.10,
-        "communication_clarity": 0.15,
-        "attention_to_detail": 0.35,
-        "decisiveness": 0.20
-    },
-    "data_analyst": {
-        "analytical_reasoning": 0.35,
-        "ambiguity_tolerance": 0.20,
-        "communication_clarity": 0.20,
-        "attention_to_detail": 0.20,
-        "decisiveness": 0.05
-    },
-    "frontend_engineer": {
-        "analytical_reasoning": 0.15,
-        "ambiguity_tolerance": 0.20,
-        "communication_clarity": 0.20,
-        "attention_to_detail": 0.30,
-        "decisiveness": 0.15
-    },
-    "backend_engineer": {
-        "analytical_reasoning": 0.30,
-        "ambiguity_tolerance": 0.15,
-        "communication_clarity": 0.15,
-        "attention_to_detail": 0.25,
-        "decisiveness": 0.15
-    }
-}
+from app.agents.domain_weights import DOMAIN_WEIGHTS
 
 def _lower_difficulty(current: str) -> str:
     if current == "hard":
@@ -101,10 +65,12 @@ def career_fit_node(state: SimulationState) -> dict:
     # Append the current scene and evaluation to history
     new_history = list(history)
     current_scene = state.get("current_scene")
+    student_response = state.get("student_response", "")
     if current_scene and current_evaluation:
         new_history.append({
             "scene": current_scene,
-            "evaluation": current_evaluation
+            "evaluation": current_evaluation,
+            "student_response": student_response
         })
         
     # Compute the multivariable weighted suitability matrices using the updated history
