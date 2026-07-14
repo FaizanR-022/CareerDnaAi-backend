@@ -211,9 +211,14 @@ async def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
     if report_dict:
         return FitReportResult(**report_dict)
 
-    # Fallback: call report_node directly with ctx data
-    from app.agents.nodes.report import generate_fit_report_from_ctx
-    return await generate_fit_report_from_ctx(ctx)
+    # Fallback: call report generator directly with ctx data
+    import asyncio
+    from app.agents.career_fit_agent import generate_fit_report_data
+    
+    # generate_fit_report_data expects (user_id: str, sessions: list[dict])
+    sessions_dicts = [s.model_dump() for s in ctx.sessions] if ctx.sessions else []
+    report_dict = await asyncio.to_thread(generate_fit_report_data, ctx.user_id, sessions_dicts)
+    return FitReportResult(**report_dict)
 
 async def run_mcq_generation_step(ctx: MCQGenerationContext) -> MCQGenerationResult:
     """

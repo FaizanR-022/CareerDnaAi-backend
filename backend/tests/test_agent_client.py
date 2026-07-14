@@ -40,7 +40,7 @@ async def test_generate_scene_dispatches_to_mock_by_default():
 
 @pytest.mark.anyio
 async def test_evaluate_response_dispatches_to_mock_by_default():
-    scene = await mock_agent.generate_scene(_scene_ctx())
+    scene = mock_agent.generate_scene(_scene_ctx())
     ctx = EvaluationContext(
         simulation_session_id="s1", user_id="u1", domain="product_manager",
         difficulty="medium", scene_number=1, scene_content=scene,
