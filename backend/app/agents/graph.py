@@ -329,7 +329,8 @@ SCENARIO TYPES TO USE: {', '.join(topic_config['examples'])}
 
 Rules:
 - Every question must be a realistic workplace scenario
-- Each question has exactly 4 options (A, B, C, D)
+- Each question has exactly 4 options
+- DO NOT prefix the options with A), B), C), or D)
 - Exactly one correct option
 - Test real decision-making, not definitions
 
