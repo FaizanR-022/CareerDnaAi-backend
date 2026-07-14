@@ -120,16 +120,6 @@ def test_deactivate_user(e2e_user):
     assert auth_repo.get_user_by_id(user["id"])["is_active"] is False
 
 
-def test_save_onboarding_persists_profile(e2e_user, require_simulation_schema):
-    user = e2e_user["user"]
-    users_repo.save_onboarding(user["id"], {
-        "university": f"Onboard Uni {uuid.uuid4().hex[:8]}",
-        "personality_results": {"trait": "high"},
-        "career_interests": ["ml"],
-    })
-    # self_rated_* is DB-defaulted to 3, not collected at onboarding anymore
-    assert user_profile.get_self_rating(user["id"], "product_manager") == 3
-
 
 # ─── new-flow repositories, against real Supabase (not memory mode) ──────
 
@@ -219,11 +209,8 @@ def test_career_dna_reports_e2e(e2e_user):
 
 
 def test_user_profile_self_rating_e2e(e2e_user, require_simulation_schema):
+    # Nothing currently writes to user_profiles (onboarding no longer does,
+    # per Ali's request to drop the now-redundant/dropped fields) — confirms
+    # get_self_rating degrades to None rather than erroring when no row exists.
     user_id = e2e_user["user"]["id"]
-    # no profile row exists until onboarding runs
     assert user_profile.get_self_rating(user_id, "product_manager") is None
-
-    users_repo.save_onboarding(user_id, {
-        "university": "", "personality_results": {}, "career_interests": [],
-    })
-    assert user_profile.get_self_rating(user_id, "product_manager") == 3

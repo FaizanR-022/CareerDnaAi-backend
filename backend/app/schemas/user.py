@@ -4,23 +4,12 @@ from app.schemas.agent_contracts import Domain, QuestionScore
 
 
 class OnboardingRequest(BaseModel):
-    university: str = ""
-    degree: str = ""
-    graduation_year: int | None = Field(None, ge=1950, le=2050)
-    career_interests: list[str] = Field(default_factory=list, max_length=10)
-    personality_results: dict = Field(default_factory=dict)
+    """university/degree/graduation_year/core_interests are already captured
+    at signup — not re-asked here. Both fields below are used only to
+    generate the calibration MCQs and are never persisted."""
 
-    # Used only to generate the calibration MCQs below — never persisted.
     chosen_field: Domain
     self_assessment: list[QuestionScore] = Field(default_factory=list, max_length=20)
-
-    @field_validator("career_interests")
-    @classmethod
-    def validate_career_interests(cls, v: list[str]) -> list[str]:
-        cleaned = [item.strip() for item in v if item.strip()]
-        if len(cleaned) != len(v):
-            raise ValueError("career_interests must not contain empty values")
-        return cleaned
 
 
 class UpdateUserRequest(BaseModel):

@@ -78,11 +78,6 @@ def test_onboarding_request_accepts_valid_minimal_payload():
     assert req.self_assessment == []
 
 
-def test_onboarding_request_rejects_empty_career_interest():
-    with pytest.raises(ValidationError):
-        OnboardingRequest(chosen_field="product_manager", career_interests=["ux", ""])
-
-
 def test_onboarding_request_rejects_self_assessment_score_out_of_range():
     with pytest.raises(ValidationError):
         OnboardingRequest(

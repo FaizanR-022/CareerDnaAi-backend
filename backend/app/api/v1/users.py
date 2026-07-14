@@ -14,9 +14,6 @@ router = APIRouter(tags=["users"])
 
 @router.post("/user/onboarding", response_model=MCQGenerationResult)
 async def save_onboarding(req: OnboardingRequest, current_user: dict = Depends(get_current_user)):
-    if get_supabase():
-        users_repo.save_onboarding(current_user["user_id"], req.model_dump())
-
     ctx = MCQGenerationContext(
         user_id=current_user["user_id"],
         chosen_field=req.chosen_field,

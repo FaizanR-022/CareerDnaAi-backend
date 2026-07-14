@@ -6,25 +6,6 @@ from app.repositories.auth import _flatten_user, get_or_create_lookup
 logger = logging.getLogger(__name__)
 
 
-def save_onboarding(user_id: str, data: dict) -> None:
-    supabase = get_supabase()
-
-    supabase.table("users").update({
-        "university_id": get_or_create_lookup("universities", data["university"]),
-    }).eq("id", user_id).execute()
-
-    # self_rated_* columns are deliberately omitted here — they default to 3
-    # in the DB (see schema.sql) and are no longer collected from the client;
-    # omitting them (rather than sending 3 explicitly) means an existing
-    # user's previously-set values are never overwritten by a later
-    # onboarding-related update, only a brand-new row gets the default.
-    supabase.table("user_profiles").upsert({
-        "user_id": user_id,
-        "personality_results": data["personality_results"],
-        "interest_results": data["career_interests"],
-    }).execute()
-
-
 def update_user(user_id: str, data: dict) -> dict:
     supabase = get_supabase()
     update = {}

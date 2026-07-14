@@ -21,14 +21,11 @@ def test_get_my_profile_requires_auth(api_client):
     assert r.json()["success"] is False
 
 
-def test_onboarding_saves_profile_and_returns_mcqs(api_client, auth_headers):
+def test_onboarding_returns_mcqs(api_client, auth_headers):
     r = api_client.post(
         "/api/v1/user/onboarding",
         headers=auth_headers,
         json={
-            "university": "Test University",
-            "career_interests": ["ux", "strategy"],
-            "personality_results": {"trait": "high-openness"},
             "chosen_field": "product_manager",
             "self_assessment": [{"question": "Comfortable with ambiguity?", "score": 4}],
         },
