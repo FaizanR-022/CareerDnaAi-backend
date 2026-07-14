@@ -393,7 +393,7 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
   "extra": {{}}
 }}"""
 
-    llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.1)
+    llm = get_llm(model="llama-3.1-8b-instant", temperature=0.1)
 
     try:
         response = await acall_llm_with_retry(

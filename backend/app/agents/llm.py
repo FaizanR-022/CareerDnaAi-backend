@@ -1,7 +1,7 @@
 from app.core.config import get_settings
 
 
-def get_llm(model: str = "llama-3.3-70b-versatile", temperature: float = 0.3):
+def get_llm(model: str = "llama-3.1-8b-instant", temperature: float = 0.3):
     """
     Provider abstraction. Set LLM_PROVIDER env var to switch.
     Supported: groq, openrouter
