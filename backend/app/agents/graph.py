@@ -16,7 +16,6 @@ from app.agents.nodes.supervisor import supervisor_node
 from app.agents.nodes.scenario import scenario_node
 from app.agents.nodes.evaluation import evaluation_node
 from app.agents.nodes.career_fit import career_fit_node
-from app.agents.nodes.report import report_node
 from app.schemas.agent_contracts import (
     SceneContent, SceneGenerationContext,
     EvaluationResult, EvaluationContext,
@@ -59,8 +58,6 @@ async def human_input_node(state: SimulationState) -> dict:
 def route_after_career_fit(state: SimulationState) -> str:
     if state.get("should_loop_back"):
         return "scenario_node"
-    elif state.get("is_final_scene"):
-        return "report_node"
     else:
         return END
 
@@ -74,7 +71,6 @@ def build_graph(checkpointer):
     builder.add_node("human_input_node", human_input_node)
     builder.add_node("evaluation_node", evaluation_node)
     builder.add_node("career_fit_node", career_fit_node)
-    builder.add_node("report_node", report_node)
 
     builder.add_edge(START, "supervisor_node")
     builder.add_edge("supervisor_node", "scenario_node")
@@ -86,13 +82,11 @@ def build_graph(checkpointer):
         route_after_career_fit,
         {
             "scenario_node": "scenario_node",
-            "report_node": "report_node",
             END: END,
         }
     )
-    builder.add_edge("report_node", END)
 
-    return builder.compile(checkpointer=checkpointer, interrupt_before=["human_input_node"])
+    return builder.compile(checkpointer=checkpointer)
 
 checkpointer = _build_checkpointer()
 graph = build_graph(checkpointer)
@@ -184,6 +178,16 @@ async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
     config = _get_config(ctx.simulation_session_id)
     student_response = ctx.user_response.raw_text or ""
 
+    # Ensure a checkpoint exists before resuming
+    try:
+        existing = await graph.aget_state(config)
+        has_state = existing and existing.values
+    except Exception:
+        has_state = False
+
+    if not has_state:
+        raise ValueError(f"Cannot evaluate response: no active graph state found for session {ctx.simulation_session_id}")
+
     # Resume graph from interrupt with student response
     result = await graph.ainvoke(
         Command(resume=student_response),
@@ -198,18 +202,9 @@ async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
 async def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
     """
     Called by agent_client.generate_fit_report().
-    Reads from checkpointed state or builds from ctx.
+    Calls the report generator directly with full DB context to ensure 
+    accurate evidence citations based on committed database IDs.
     """
-    config = _get_config(ctx.sessions[0].simulation_session_id if ctx.sessions else "report")
-    try:
-        existing = await graph.aget_state(config)
-        result = existing.values if existing else {}
-    except Exception:
-        result = {}
-
-    report_dict = result.get("report")
-    if report_dict:
-        return FitReportResult(**report_dict)
 
     # Fallback: call report generator directly with ctx data
     import asyncio
