@@ -46,7 +46,7 @@ def initial_state():
 @pytest.mark.anyio
 async def test_phase1_scene_graph_initialises_session(graph_module, initial_state):
     """Phase 1 — Drive the graph to generate Scene 1 and pause at interrupt."""
-    result = await graph_module.graph.ainvoke(initial_state, config=CONFIG)
+    result = await graph_module.get_graph().ainvoke(initial_state, config=CONFIG)
     assert result is not None
     current_scene = result.get("current_scene")
     assert current_scene is not None
@@ -56,13 +56,15 @@ async def test_phase1_scene_graph_initialises_session(graph_module, initial_stat
 def test_phase2_state_survives_module_reload(graph_module):
     """Phase 2 — Simulate a hard server restart."""
     reloaded = importlib.reload(graph_module)
-    assert hasattr(reloaded, "graph")
+    assert hasattr(reloaded, "get_graph")
+    graph_instance = reloaded.get_graph()
+    assert graph_instance is not None
     assert hasattr(reloaded, "run_scenario_step")
 
 @pytest.mark.anyio
 async def test_phase3_get_state_recovers_thread(graph_module):
     """Phase 3 — After restart, query get_state() for THREAD_ID."""
-    snapshot = await graph_module.graph.aget_state(CONFIG)
+    snapshot = await graph_module.get_graph().aget_state(CONFIG)
     if os.environ.get("SUPABASE_CONN_STRING"):
         assert snapshot is not None
         values = snapshot.values
@@ -74,7 +76,7 @@ async def test_phase3_get_state_recovers_thread(graph_module):
 @pytest.mark.anyio
 async def test_phase3_recovered_state_fields_types(graph_module):
     """Phase 3 — Field types in recovered state."""
-    snapshot = await graph_module.graph.aget_state(CONFIG)
+    snapshot = await graph_module.get_graph().aget_state(CONFIG)
     if os.environ.get("SUPABASE_CONN_STRING"):
         values = snapshot.values
         assert isinstance(values.get("loop_count"), int)
@@ -91,10 +93,10 @@ async def test_phase4_eval_graph_runs_with_recovered_context(graph_module, initi
     
     # Check if there is an active snapshot
     try:
-        snapshot = await graph_module.graph.aget_state(CONFIG)
+        snapshot = await graph_module.get_graph().aget_state(CONFIG)
         if snapshot and snapshot.next:
             # Graph is paused at human_input_node, resume it
-            result = await graph_module.graph.ainvoke(Command(resume=student_response), config=CONFIG)
+            result = await graph_module.get_graph().ainvoke(Command(resume=student_response), config=CONFIG)
             
             assert result is not None
             evaluation = result.get("current_evaluation")
