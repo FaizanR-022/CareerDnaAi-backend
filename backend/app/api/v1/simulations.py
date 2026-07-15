@@ -8,6 +8,8 @@ from app.schemas.simulation import (
     StartSimulationRequest,
     SubmitResponseRequest,
     SubmitResponseResponse,
+    SendMessageRequest,
+    NPCReplyResponse,
 )
 from app.services import simulation_service
 
@@ -17,6 +19,30 @@ router = APIRouter(prefix="/simulations", tags=["simulations"])
 @router.post("", response_model=SceneResponse, status_code=201)
 async def start_simulation(req: StartSimulationRequest, current_user: dict = Depends(get_current_user)):
     return await simulation_service.start_simulation(current_user, req.domain, req.difficulty)
+
+
+@router.post(
+    "/{session_id}/scenes/{scene_number}/messages",
+    summary="Send a message and get NPC reply (no evaluation, no scene advance)"
+)
+async def send_message(
+    session_id: str,
+    scene_number: int,
+    req: SendMessageRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Student sends a message to the NPC during a scene.
+    NPC responds based on their persona and the conversation so far.
+    Does NOT evaluate or advance the scene.
+    Call /responses when the student is done to evaluate everything.
+    """
+    return await simulation_service.send_message(
+        session_id=session_id,
+        scene_number=scene_number,
+        student_message=req.message,
+        user=current_user
+    )
 
 
 @router.post("/{session_id}/scenes/{scene_number}/responses", response_model=SubmitResponseResponse)
