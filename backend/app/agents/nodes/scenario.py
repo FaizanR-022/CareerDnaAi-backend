@@ -369,7 +369,7 @@ async def scenario_node(state: SimulationState) -> dict:
             dan_trust=dan_trust,
             scene_config=scene_config,
         )
-        llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
+        llm = get_llm(model="llama-3.1-8b-instant", temperature=0.6)
         try:
             response = await acall_llm_with_retry(
                 llm,
@@ -519,7 +519,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
   "extra": {{}}
 }}"""
 
-    llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.6)
+    llm = get_llm(model="llama-3.1-8b-instant", temperature=0.6)
 
     try:
         response = await acall_llm_with_retry(
