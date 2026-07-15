@@ -27,6 +27,19 @@ class SubmitResponseRequest(BaseModel):
     response: SubmittedResponse
 
 
+class SendMessageRequest(BaseModel):
+    """Request body for POST /simulations/{id}/scenes/{n}/messages"""
+    message: str  # the student's message text
+
+
+class NPCReplyResponse(BaseModel):
+    """Response for the NPC chat endpoint"""
+    npc_id: str
+    npc_name: str
+    content: str
+    conversation_history: list  # full history so far in this scene
+
+
 # ─── Responses ────────────────────────────────────────────────────────────
 
 class SceneResponse(BaseModel):
