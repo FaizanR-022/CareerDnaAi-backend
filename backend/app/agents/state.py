@@ -38,3 +38,6 @@ class SimulationState(TypedDict):
     # Updated by evaluation_node trust modifier logic
     npc_trust: Optional[dict]
 
+    # Continuous chat state
+    conversation_history: list
+    active_npc_id: str

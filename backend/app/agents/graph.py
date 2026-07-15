@@ -142,6 +142,8 @@ def _ctx_to_state(ctx: SceneGenerationContext) -> dict:
         "loop_count": 0,        # only 0 on first scene — checkpointer carries it after
         "student_response": "",
         "npc_trust": {},
+        "conversation_history": [],
+        "active_npc_id": "",
     }
 
 def _get_config(session_id: str) -> dict:
