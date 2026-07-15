@@ -65,3 +65,20 @@ def get_memory(session_id: str) -> list[dict]:
         supabase.table("npc_memory").select("*").eq("simulation_session_id", session_id)
     )
     return result.data
+
+def upsert_npc_memory(session_id: str, npc_id: str, memory_summary: str) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    supabase = get_supabase()
+    memory_row = {
+        "simulation_session_id": session_id,
+        "npc_id": npc_id,
+        "memory_summary": memory_summary,
+        "updated_at": now,
+    }
+    if not supabase:
+        _memory_memory[(session_id, npc_id)] = memory_row
+    else:
+        execute_or_503(
+            supabase.table("npc_memory")
+            .upsert(memory_row, on_conflict="simulation_session_id,npc_id")
+        )

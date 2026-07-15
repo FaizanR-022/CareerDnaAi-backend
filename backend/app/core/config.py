@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     frontend_url: str = ""
     llm_provider: str = "groq"
     groq_api_key: str = ""
+    groq_api_keys: str = ""
     openrouter_api_key: str = ""
 
     agent_layer_impl: Literal["mock", "real"] = "mock"
@@ -24,6 +25,15 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
 
     model_config = {"env_file": ".env", "case_sensitive": False}
+
+    @property
+    def get_groq_api_keys(self) -> list[str]:
+        keys = []
+        if self.groq_api_keys:
+            keys = [k.strip() for k in self.groq_api_keys.split(",") if k.strip()]
+        if not keys and self.groq_api_key:
+            keys = [self.groq_api_key.strip()]
+        return keys
 
 
 @lru_cache
