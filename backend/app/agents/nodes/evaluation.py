@@ -423,9 +423,10 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
         evaluation = json.loads(raw)
         latest_score = float(evaluation.get("overall_score", 50.0))
         logger.info(
-            f"evaluation_node → {latest_score}/100 | "
+            f"[LLM_OK] evaluation_node → score generated from LLM: {latest_score}/100 | "
             f"flags: {evaluation.get('behavioral_flags')}"
         )
+        logger.info(f"[LLM_RESPONSE] evaluation_node: {raw}")
 
         # ── SQA TRUST MODIFIER INJECTION ─────────────────────────────────────
         # Programmatically adjust Dan's trust based on student behaviour signals.
@@ -489,8 +490,9 @@ Return ONLY valid JSON. No markdown. No backticks. No preamble. No explanation o
         return state_updates
 
     except Exception as e:
-        logger.error(
-            f"evaluation_node error: {e} | "
+        logger.warning(
+            f"[LLM_FALLBACK] evaluation_node → using static fallback evaluation (score=25.0) "
+            f"(reason: {e}) | "
             f"raw: {response.content[:200] if 'response' in dir() else 'no response'}"
         )
         fallback = _fallback_evaluation()

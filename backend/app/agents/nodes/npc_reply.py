@@ -90,8 +90,13 @@ RULES:
             stop=["```"]
         )
         npc_reply = response.content.strip()
+        logger.info(f"[LLM_OK] npc_reply_node → reply generated from LLM for {active_npc_id}")
+        logger.info(f"[LLM_RESPONSE] npc_reply_node ({active_npc_id}): {npc_reply}")
     except Exception as e:
-        logger.error(f"npc_reply_node LLM error: {e}")
+        logger.warning(
+            f"[LLM_FALLBACK] npc_reply_node ({active_npc_id}) → using static fallback reply "
+            f"(reason: {e})"
+        )
         npc_reply = "Got it, let me get back to you on that."
 
     # Append both messages to conversation history

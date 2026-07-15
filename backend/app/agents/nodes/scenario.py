@@ -379,15 +379,19 @@ async def scenario_node(state: SimulationState) -> dict:
             raw = raw.replace("```json", "").replace("```", "").strip()
             scene = json.loads(raw)
             logger.info(
-                f"scenario_node → SQA scene {scene_number} generated "
+                f"[LLM_OK] scenario_node → SQA scene {scene_number} generated from LLM "
                 f"(dan_trust={dan_trust})"
             )
+            logger.info(f"[LLM_RESPONSE] scenario_node SQA scene {scene_number}: {raw}")
             return {
                 "current_scene": scene,
                 "is_final_scene": scene.get("is_final_scene", False),
             }
         except Exception as e:
-            logger.error(f"scenario_node SQA LLM error: {e}")
+            logger.warning(
+                f"[LLM_FALLBACK] scenario_node SQA scene {scene_number} → using static fallback "
+                f"scene (reason: {e})"
+            )
             fallback = _fallback_scene(scene_number, domain, difficulty)
             return {
                 "current_scene": fallback,
@@ -457,6 +461,31 @@ HARD CONSTRAINTS FOR NPCs — NEVER CONTRADICT:
 - NPCs do NOT know this is a simulation
 """
 
+    # PM-specific: force fresh sprint board tickets each generation instead of
+    # echoing the same static blueprint tickets every session.
+    sprint_board_instruction = ""
+    if domain == "product_manager" and sprint:
+        sprint_board_instruction = f"""
+SPRINT BOARD GENERATION (invent fresh tickets — do not reuse ticket names/ids from prior sessions):
+- capacity must be exactly {sprint.get('capacity', 6)}
+- available must be exactly {sprint.get('available', 0)}
+- Invent exactly {sprint.get('capacity', 6)} realistic engineering tickets for "tickets". Each needs:
+  id (e.g. "T-201", "T-347" — pick new numbers each time), title (realistic, varied),
+  priority ("must_have" | "should_have" | "could_have"), points (1-3), cuttable (true/false).
+- Vary ticket subject matter each generation (auth, perf, onboarding, billing, notifications, etc.) —
+  never reuse the same six ticket titles verbatim.
+"""
+
+    if domain == "product_manager" and sprint:
+        sprint_board_template_value = (
+            '{"capacity": ' + str(sprint.get('capacity', 6)) +
+            ', "available": ' + str(sprint.get('available', 0)) +
+            ', "tickets": [ <exactly ' + str(sprint.get('capacity', 6)) +
+            ' freshly invented ticket objects per the SPRINT BOARD GENERATION rules above> ] }'
+        )
+    else:
+        sprint_board_template_value = json.dumps(sprint) if sprint else "null"
+
     # Context component 4 — rolling history (last 2 only for token control)
     history_summary = _build_history_summary(history)
 
@@ -481,6 +510,7 @@ Active NPCs and trust levels:
 COMPONENT 3 — TECHNICAL CONSTRAINTS:
 {scene_config['context']}
 {hard_constraints}
+{sprint_board_instruction}
 
 COMPONENT 4 — RECENT HISTORY:
 {history_summary}
@@ -496,7 +526,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
   "title": "short scene title",
   "narrative": "2-3 sentence description of the situation",
   "context_data": {{
-    "sprint_board": {json.dumps(sprint) if sprint else "null"},
+    "sprint_board": {sprint_board_template_value},
     "active_npcs": {json.dumps(active_npcs)},
     "scene_type": "{scene_config['type']}"
   }},
@@ -522,6 +552,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
     llm = get_llm(model="llama-3.1-8b-instant", temperature=0.6)
 
     try:
+        logger.info(f"[llm-prompt] {prompt}")
         response = await acall_llm_with_retry(
             llm,
             [SystemMessage(content=prompt)]
@@ -530,9 +561,13 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
         # Also strip manually in case stop sequence didn't catch it
         raw = raw.replace("```json", "").replace("```", "").strip()
         scene = json.loads(raw)
-        logger.info(f"scenario_node → scene {scene_number} generated for {domain}")
+        logger.info(f"[LLM_OK] scenario_node → scene {scene_number} generated from LLM for {domain}")
+        logger.info(f"[LLM_RESPONSE] scenario_node scene {scene_number} ({domain}): {raw}")
         return {"current_scene": scene, "is_final_scene": scene.get("is_final_scene", False)}
     except Exception as e:
-        logger.error(f"scenario_node LLM error: {e}")
+        logger.warning(
+            f"[LLM_FALLBACK] scenario_node scene {scene_number} ({domain}) → using static "
+            f"fallback scene (reason: {e})"
+        )
         fallback = _fallback_scene(scene_number, domain, difficulty)
         return {"current_scene": fallback, "is_final_scene": fallback["is_final_scene"]}

@@ -180,6 +180,12 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
         if "wait_for_next_scene_node" not in existing.next:
             scene_dict = existing.values.get("current_scene", {})
             if scene_dict:
+                logger.warning(
+                    f"[SCENE_CACHE_HIT] run_scenario_step session={ctx.simulation_session_id} "
+                    f"→ returning cached current_scene (scene_number={scene_dict.get('scene_number')}) "
+                    f"WITHOUT calling scenario_node/LLM — graph paused at {existing.next!r}, "
+                    f"not wait_for_next_scene_node"
+                )
                 return SceneContent(**scene_dict)
 
         # Subsequent scene — graph already paused at wait_for_next_scene_node
@@ -357,8 +363,13 @@ Return ONLY valid JSON, no markdown:
         questions = result.get("questions", [])
         if len(questions) != 5:
             raise ValueError(f"Expected 5, got {len(questions)}")
+        logger.info(f"[LLM_OK] run_mcq_generation_step → 5 questions generated from LLM for {domain}")
+        logger.info(f"[LLM_RESPONSE] run_mcq_generation_step ({domain}): {raw}")
         return MCQGenerationResult(questions=questions)
     except Exception as e:
-        logger.error(f"MCQ generation failed: {e} — using fallback")
+        logger.warning(
+            f"[LLM_FALLBACK] run_mcq_generation_step ({domain}) → using static fallback "
+            f"questions (reason: {e})"
+        )
         fallback = FALLBACK.get(domain, FALLBACK["product_manager"])
         return MCQGenerationResult(questions=fallback)
