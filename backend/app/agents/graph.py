@@ -186,7 +186,13 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
         # Update scene_number in state then resume
         await graph.aupdate_state(
             config,
-            {"scene_number": ctx.scene_number, "difficulty": ctx.difficulty}
+            {
+                "scene_number": ctx.scene_number,
+                "difficulty": ctx.difficulty,
+                "conversation_history": [],
+                "active_npc_id": "",
+                "student_message": ""
+            }
         )
         result = await graph.ainvoke(Command(resume=True), config=config)
 
