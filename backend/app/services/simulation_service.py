@@ -152,12 +152,105 @@ def _finalize_submit(session_id: str, scene_id: str, result: EvaluationResult, s
         "session_status": session_status,
     }
 
+async def send_message(
+    session_id: str,
+    scene_number: int,
+    student_message: str,
+    user: dict
+) -> dict:
+    """
+    Handles a single chat message from student.
+    Gets NPC reply. Stores both in conversation_history.
+    Does NOT evaluate or advance scene.
+    """
+    import asyncio
+    from app.agents.graph import get_graph
+    
+    # Verify session ownership
+    session = await asyncio.to_thread(
+        simulation_sessions.get_session, session_id
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session["user_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your session")
+    
+    # Get current graph state from checkpointer
+    config = {"configurable": {"thread_id": session_id}}
+    graph = get_graph()
+    
+    try:
+        existing = await graph.aget_state(config)
+        if not existing or not existing.values:
+            raise HTTPException(status_code=409, detail="No active scene — start simulation first")
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=f"Cannot retrieve session state: {e}")
+    
+    current_state = existing.values
+    
+    # Update state with student message and run npc_reply_node directly
+    from app.agents.nodes.npc_reply import npc_reply_node
+    
+    updated_state = dict(current_state)
+    updated_state["student_message"] = student_message
+    
+    npc_result = await npc_reply_node(updated_state)
+    
+    # Persist updated conversation_history back to graph state
+    await graph.aupdate_state(
+        config,
+        {
+            "conversation_history": npc_result["conversation_history"],
+            "npc_reply": npc_result["npc_reply"],
+            "active_npc_id": npc_result["active_npc_id"],
+        }
+    )
+    
+    # Also persist to Supabase npc_memory table for resume
+    active_npc_id = npc_result["active_npc_id"]
+    await asyncio.to_thread(
+        npc_state_repo.upsert_npc_memory,
+        session_id,
+        active_npc_id,
+        f"Last message: {student_message[:100]}",
+    )
+    
+    return {
+        "npc_id": active_npc_id,
+        "npc_name": _get_npc_name(npc_result["conversation_history"]),
+        "content": npc_result["npc_reply"],
+        "conversation_history": npc_result["conversation_history"],
+    }
+
+def _get_npc_name(history: list) -> str:
+    """Extract NPC name from last NPC message in history."""
+    for msg in reversed(history):
+        if msg["role"] == "npc":
+            return msg.get("npc_name", "NPC")
+    return "NPC"
+
+
 async def submit_response(
     session_id: str,
     current_user: dict,
     scene_number: int,
     user_response: SubmittedResponse,
 ) -> dict:
+    from app.agents.graph import get_graph
+    config = {"configurable": {"thread_id": session_id}}
+    graph = get_graph()
+    existing = await graph.aget_state(config)
+    
+    state = existing.values if existing else {}
+    conv_history = state.get("conversation_history", [])
+    all_student_messages = " | ".join([
+        msg["content"] for msg in conv_history 
+        if msg["role"] == "student"
+    ])
+    
+    # Use combined messages if available, otherwise use what was submitted
+    user_response.raw_text = all_student_messages or (user_response.raw_text or "")
+
     eval_ctx, session, scene_content, scene_id = await asyncio.to_thread(_prepare_submit, session_id, current_user, scene_number, user_response)
     result = await agent_client.evaluate_response(eval_ctx)
     return await asyncio.to_thread(_finalize_submit, session_id, scene_id, result, scene_content, session, scene_number)
