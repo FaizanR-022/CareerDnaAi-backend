@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -82,7 +83,9 @@ def _row_to_response(row: dict) -> dict:
     }
 
 
-async def generate_report(current_user: dict, simulation_session_ids: list[str]) -> dict:
+def _prepare_report(
+    current_user: dict, simulation_session_ids: list[str]
+) -> tuple[list[SessionEvaluationSummary], list[str]]:
     sessions = []
     for session_id in simulation_session_ids:
         session = simulation_sessions.get_session(session_id)
@@ -104,10 +107,10 @@ async def generate_report(current_user: dict, simulation_session_ids: list[str])
                 detail=f"A report already exists for simulation session {session['id']}",
             )
 
-    session_summaries = [_build_session_summary(s) for s in completed]
-    ctx = FitReportContext(user_id=current_user["user_id"], sessions=session_summaries)
-    result = await agent_client.generate_fit_report(ctx)
+    return [_build_session_summary(s) for s in completed], [s["id"] for s in completed]
 
+
+def _finalize_report(current_user: dict, result: dict, completed_ids: list[str]) -> dict:
     row = {
         "id": str(uuid.uuid4()),
         "user_id": current_user["user_id"],
@@ -123,13 +126,19 @@ async def generate_report(current_user: dict, simulation_session_ids: list[str])
         "top_recommendation": result.top_recommendation,
         "confidence_level": result.confidence_level,
         "evidence_citations": result.evidence_citations,
-        "simulation_session_ids": [s["id"] for s in completed],
+        "simulation_session_ids": completed_ids,
         "pdf_url": None,
         "version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     saved = reports_repo.save_report(row)
     return _row_to_response(saved)
+
+async def generate_report(current_user: dict, simulation_session_ids: list[str]) -> dict:
+    session_summaries, completed_ids = await asyncio.to_thread(_prepare_report, current_user, simulation_session_ids)
+    ctx = FitReportContext(user_id=current_user["user_id"], sessions=session_summaries)
+    result = await agent_client.generate_fit_report(ctx)
+    return await asyncio.to_thread(_finalize_report, current_user, result, completed_ids)
 
 
 def get_report(report_id: str, current_user: dict) -> dict:

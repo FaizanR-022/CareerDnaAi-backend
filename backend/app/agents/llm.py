@@ -1,5 +1,18 @@
 from app.core.config import get_settings
 
+import itertools
+
+_key_iterator = None
+
+def _get_next_groq_key() -> str:
+    global _key_iterator
+    keys = get_settings().get_groq_api_keys
+    if not keys:
+        return ""
+    if _key_iterator is None:
+        _key_iterator = itertools.cycle(keys)
+    return next(_key_iterator)
+
 
 def get_llm(model: str = "llama-3.3-70b-versatile", temperature: float = 0.3):
     """
@@ -14,7 +27,7 @@ def get_llm(model: str = "llama-3.3-70b-versatile", temperature: float = 0.3):
         return ChatGroq(
             model=model,
             temperature=temperature,
-            api_key=settings.groq_api_key,
+            api_key=_get_next_groq_key(),
         )
     elif provider == "openrouter":
         from langchain_openai import ChatOpenAI
@@ -44,6 +57,18 @@ def call_llm_with_retry(llm, messages, stop=None, max_retries=3):
             error_str = str(e).lower()
             if ("429" in error_str or "rate limit" in error_str or "too many requests" in error_str):
                 if attempt < max_retries - 1:
+                    keys = get_settings().get_groq_api_keys
+                    if len(keys) > 1 and type(llm).__name__ == "ChatGroq":
+                        new_key = _get_next_groq_key()
+                        # Re-instantiate the same model with the new key
+                        from langchain_groq import ChatGroq
+                        llm = ChatGroq(model=llm.model_name, temperature=llm.temperature, api_key=new_key)
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"Groq rate limit hit. Switched to next API key. Retrying immediately."
+                        )
+                        continue  # Retry instantly with the new key!
+
                     wait_seconds = 2 ** (attempt + 1)  # 2, 4, 8
                     import logging
                     logging.getLogger(__name__).warning(
@@ -73,6 +98,17 @@ async def acall_llm_with_retry(llm, messages, stop=None, max_retries=3):
             if ("429" in error_str or "rate limit" in error_str or
                     "too many requests" in error_str):
                 if attempt < max_retries - 1:
+                    keys = get_settings().get_groq_api_keys
+                    if len(keys) > 1 and type(llm).__name__ == "ChatGroq":
+                        new_key = _get_next_groq_key()
+                        from langchain_groq import ChatGroq
+                        llm = ChatGroq(model=llm.model_name, temperature=llm.temperature, api_key=new_key)
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"Groq rate limit hit async. Switched to next API key. Retrying immediately."
+                        )
+                        continue  # Retry instantly with the new key!
+
                     wait_seconds = 2 ** (attempt + 1)
                     import logging
                     logging.getLogger(__name__).warning(
