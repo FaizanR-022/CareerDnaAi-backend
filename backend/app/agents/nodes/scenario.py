@@ -195,6 +195,14 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
             "is_final_scene": scene_number >= 4,
             "extra": {"fallback": True},
         }
+    pm_context_data = {
+        "active_npcs": ["sara_khan"],
+    }
+    if scene_number in (1, 3, 4):
+        pm_context_data["sprint_board"] = PM_SCENES[1]["sprint_board"]
+    if scene_number in (2, 3, 4):
+        pm_context_data["prd_data"] = PM_SCENES[1]["prd_data"]
+
     return {
         "scene_number": scene_number,
         "domain": domain,
@@ -204,11 +212,7 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
             "Sara Khan from Marketing has sent you a voice memo. "
             "She's requesting a referral feature in the current sprint."
         ),
-        "context_data": {
-            "sprint_board": PM_SCENES[1]["sprint_board"] if scene_number in (1, 3, 4) else None,
-            "active_npcs": ["sara_khan"],
-            "prd_data": PM_SCENES[1]["prd_data"] if scene_number in (2, 3, 4) else None,
-        },
+        "context_data": pm_context_data,
         "characters": [
             {"id": "sara_khan", "name": "Sara Khan",
              "role": "Head of Marketing", "initial_trust": 50}
@@ -604,6 +608,14 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
         # Also strip manually in case stop sequence didn't catch it
         raw = raw.replace("```json", "").replace("```", "").strip()
         scene = json.loads(raw)
+
+        # Post-process PM domain keys to completely remove them instead of sending nulls
+        if domain == "product_manager" and "context_data" in scene:
+            if scene_number == 1:
+                scene["context_data"].pop("prd_data", None)
+            elif scene_number == 2:
+                scene["context_data"].pop("sprint_board", None)
+
         logger.info(f"[LLM_OK] scenario_node → scene {scene_number} generated from LLM for {domain}")
         logger.info(f"[LLM_RESPONSE] scenario_node scene {scene_number} ({domain}): {raw}")
         return {"current_scene": scene, "is_final_scene": scene.get("is_final_scene", False)}
