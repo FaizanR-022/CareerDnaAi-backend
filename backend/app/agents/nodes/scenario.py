@@ -207,6 +207,7 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
         "context_data": {
             "sprint_board": PM_SCENES[1]["sprint_board"],
             "active_npcs": ["sara_khan"],
+            "prd_data": PM_SCENES[1]["prd_data"],
         },
         "characters": [
             {"id": "sara_khan", "name": "Sara Khan",
@@ -411,24 +412,28 @@ async def scenario_node(state: SimulationState) -> dict:
         active_npcs = scene_config.get("active_npcs", ["sara_khan"])
         npc_map = PM_NPCS
         sprint = scene_config.get("sprint_board", {})
+        prd_data = scene_config.get("prd_data", {})
     elif domain == "data_analyst":
         from app.agents.domains.da.npcs import DA_VP_NPC, DA_SCENES
         scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
         active_npcs = scene_config.get("active_npcs", ["vp_analytics"])
         npc_map = {"vp_analytics": DA_VP_NPC}
         sprint = {}
+        prd_data = {}
     elif domain == "frontend_engineer":
         from app.agents.domains.fe.npcs import FE_CLIENT_NPC, FE_SCENES
         scene_config = FE_SCENES.get(scene_number, FE_SCENES[1])
         active_npcs = scene_config.get("active_npcs", ["fe_client"])
         npc_map = {"fe_client": FE_CLIENT_NPC}
         sprint = {}
+        prd_data = {}
     elif domain == "backend_engineer":
         from app.agents.domains.be.npcs import BE_TEAM_LEAD_NPC, BE_SCENES
         scene_config = BE_SCENES.get(scene_number, BE_SCENES[1])
         active_npcs = scene_config.get("active_npcs", ["be_team_lead"])
         npc_map = {"be_team_lead": BE_TEAM_LEAD_NPC}
         sprint = {}
+        prd_data = {}
     else:
         # FE, BE — fallback to PM for now
         from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
@@ -436,6 +441,7 @@ async def scenario_node(state: SimulationState) -> dict:
         active_npcs = ["sara_khan"]
         npc_map = PM_NPCS
         sprint = scene_config.get("sprint_board", {})
+        prd_data = scene_config.get("prd_data", {})
 
     # Build NPC context with trust levels
     npc_context_parts = []
@@ -478,6 +484,10 @@ SPRINT BOARD GENERATION (invent fresh tickets — do not reuse ticket names/ids 
   priority ("must_have" | "should_have" | "could_have"), points (1-3), cuttable (true/false).
 - Vary ticket subject matter each generation (auth, perf, onboarding, billing, notifications, etc.) —
   never reuse the same six ticket titles verbatim.
+
+PRD DOCUMENT — output the prd_data object exactly as provided below inside context_data.
+Do NOT modify the prd_data fields — preserve them verbatim from the seed data.
+The student will fill in the empty fields themselves via the frontend PRD editor.
 """
     elif domain == "frontend_engineer":
         domain_instruction = """
@@ -507,6 +517,9 @@ SCENARIO GENERATION (invent fresh specifics — do not reuse details from prior 
         )
     else:
         sprint_board_template_value = json.dumps(sprint) if sprint else "null"
+
+    # PRD data — pass seed verbatim for PM; null for all other domains
+    prd_data_template_value = json.dumps(prd_data) if prd_data else "null"
 
     # Context component 4 — rolling history (last 2 only for token control)
     history_summary = _build_history_summary(history)
@@ -549,6 +562,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
   "narrative": "2-3 sentence description of the situation",
   "context_data": {{
     "sprint_board": {sprint_board_template_value},
+    "prd_data": {prd_data_template_value},
     "active_npcs": {json.dumps(active_npcs)},
     "scene_type": "{scene_config['type']}"
   }},

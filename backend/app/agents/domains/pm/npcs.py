@@ -73,7 +73,16 @@ PM_SCENES = {
                 {"id": "T-105", "title": "API rate limiting", "priority": "must_have", "points": 2, "cuttable": False},
                 {"id": "T-106", "title": "Onboarding redesign", "priority": "should_have", "points": 2, "cuttable": True},
             ]
-        }
+        },
+        # PRD starts incomplete — no scope or metrics yet (student must fill these in)
+        "prd_data": {
+            "title": "Referral Feature PRD — Draft",
+            "objective": "Introduce a referral mechanism to accelerate user growth via word-of-mouth.",
+            "audience": "",
+            "requirements": "",
+            "outOfScope": "",
+            "successMetrics": "",
+        },
     },
     2: {
         "type": "sprint_tradeoff_decision",
@@ -84,6 +93,15 @@ PM_SCENES = {
             "Must communicate decision to BOTH Sara AND Rayan."
         ),
         "active_npcs": ["sara_khan", "rayan_eng_lead"],
+        # PRD still incomplete — student is mid-decision, scope not yet locked
+        "prd_data": {
+            "title": "Referral Feature PRD — Draft",
+            "objective": "Introduce a referral mechanism to accelerate user growth via word-of-mouth.",
+            "audience": "Existing mobile-first users aged 18-35 who are likely to recommend the product.",
+            "requirements": "",
+            "outOfScope": "",
+            "successMetrics": "",
+        },
     },
     3: {
         "type": "stakeholder_conflict",
@@ -94,6 +112,15 @@ PM_SCENES = {
             "PRD must be updated with scope, out_of_scope, and success metric."
         ),
         "active_npcs": ["sara_khan", "rayan_eng_lead"],
+        # PRD partially filled — student must complete requirements, outOfScope, and successMetrics
+        "prd_data": {
+            "title": "Referral Feature PRD — v0.1",
+            "objective": "Deliver an MVP referral flow that lets users share a unique invite link and tracks successful sign-ups.",
+            "audience": "Existing mobile-first users aged 18-35 who are likely to recommend the product.",
+            "requirements": "1. Unique referral link generation per user.\n2. Referral tracking dashboard (invites sent, accepted).\n3. Confirmation email to referrer on successful sign-up.",
+            "outOfScope": "",
+            "successMetrics": "",
+        },
     },
     4: {
         "type": "roadmap_presentation",
@@ -105,5 +132,26 @@ PM_SCENES = {
         ),
         "active_npcs": ["zara_malik"],
         "is_final": True,
+        # PRD fully drafted — student defends this document to Zara
+        "prd_data": {
+            "title": "Referral Feature PRD — v1.0",
+            "objective": "Deliver an MVP referral flow that lets users share a unique invite link and tracks successful sign-ups, targeting a 15% uplift in new user acquisition within 30 days.",
+            "audience": "Existing mobile-first users aged 18-35 who are likely to recommend the product.",
+            "requirements": (
+                "1. Unique referral link generation per user.\n"
+                "2. Referral tracking dashboard (invites sent, accepted).\n"
+                "3. Confirmation email to referrer on successful sign-up.\n"
+                "4. Basic leaderboard showing top referrers (v1 — read-only)."
+            ),
+            "outOfScope": (
+                "Native mobile app deep links, multi-currency reward payouts, "
+                "social-sharing leaderboard animations, and AI-personalised referral copy."
+            ),
+            "successMetrics": (
+                "1. Referral conversion rate ≥ 20% (invite accepted / invite sent).\n"
+                "2. 15% net new user growth within 30 days of launch.\n"
+                "3. Referral share rate ≥ 10% of active user base within first 2 weeks."
+            ),
+        },
     },
 }
