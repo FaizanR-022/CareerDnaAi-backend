@@ -39,3 +39,27 @@ def list_reports_for_user(user_id: str) -> list[dict]:
         .order("generated_at", desc=True)
     )
     return result.data
+
+
+def find_report_for_session(user_id: str, session_id: str) -> Optional[dict]:
+    supabase = get_supabase()
+    if not supabase:
+        matches = [
+            r
+            for r in _memory_reports.values()
+            if r["user_id"] == user_id
+            and session_id in (r.get("simulation_session_ids") or [])
+        ]
+        if not matches:
+            return None
+        return max(matches, key=lambda r: r["generated_at"])
+
+    result = execute_or_503(
+        supabase.table("career_dna_reports")
+        .select("*")
+        .eq("user_id", user_id)
+        .contains("simulation_session_ids", [session_id])
+        .order("generated_at", desc=True)
+        .limit(1)
+    )
+    return result.data[0] if result.data else None

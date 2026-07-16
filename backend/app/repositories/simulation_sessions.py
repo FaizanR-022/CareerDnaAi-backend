@@ -89,6 +89,34 @@ def list_sessions_for_user(user_id: str) -> list[dict]:
     )
     return result.data
 
+
+def get_latest_session_for_domain(
+    user_id: str, domain: str, status: Optional[str] = None
+) -> Optional[dict]:
+    supabase = get_supabase()
+    if not supabase:
+        sessions = [
+            s
+            for s in _memory_sessions.values()
+            if s["user_id"] == user_id
+            and s["domain"] == domain
+            and (status is None or s["status"] == status)
+        ]
+        if not sessions:
+            return None
+        return max(sessions, key=lambda s: s["started_at"])
+
+    query = (
+        supabase.table("simulation_sessions")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("domain", domain)
+    )
+    if status:
+        query = query.eq("status", status)
+    result = execute_or_503(query.order("started_at", desc=True).limit(1))
+    return result.data[0] if result.data else None
+
 def update_difficulty(session_id: str, new_difficulty: str) -> None:
     supabase = get_supabase()
     if not supabase:

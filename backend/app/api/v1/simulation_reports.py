@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.core.auth import get_current_user
+from app.schemas.agent_contracts import Domain
 from app.schemas.report import CareerDnaReportResponse, ReportGenerateRequest
 from app.services import simulation_report_service
 
@@ -13,8 +14,8 @@ async def generate_report(req: ReportGenerateRequest, current_user: dict = Depen
 
 
 @router.get("", response_model=list[CareerDnaReportResponse])
-def list_my_reports(current_user: dict = Depends(get_current_user)):
-    return simulation_report_service.list_my_reports(current_user)
+def list_my_reports(domain: Domain | None = None, current_user: dict = Depends(get_current_user)):
+    return simulation_report_service.list_my_reports(current_user, domain)
 
 
 @router.get("/{report_id}", response_model=CareerDnaReportResponse)

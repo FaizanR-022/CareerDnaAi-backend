@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import HTTPException
 
@@ -8,6 +9,7 @@ from app.core.auth import verify_self_or_admin, verify_session_ownership
 from app.repositories import career_dna_reports as reports_repo
 from app.repositories import scene_evaluations, simulation_scenes, simulation_sessions
 from app.schemas.agent_contracts import (
+    Domain,
     EvaluationResult,
     FitReportContext,
     ScoredEvaluation,
@@ -95,6 +97,13 @@ async def generate_report(current_user: dict, simulation_session_ids: list[str])
     if not completed:
         raise HTTPException(status_code=400, detail="No completed sessions among the given IDs")
 
+    for session in completed:
+        if reports_repo.find_report_for_session(current_user["user_id"], session["id"]):
+            raise HTTPException(
+                status_code=409,
+                detail=f"A report already exists for simulation session {session['id']}",
+            )
+
     session_summaries = [_build_session_summary(s) for s in completed]
     ctx = FitReportContext(user_id=current_user["user_id"], sessions=session_summaries)
     result = await agent_client.generate_fit_report(ctx)
@@ -131,6 +140,15 @@ def get_report(report_id: str, current_user: dict) -> dict:
     return _row_to_response(row)
 
 
-def list_my_reports(current_user: dict) -> list[dict]:
+def list_my_reports(current_user: dict, domain: Optional[Domain] = None) -> list[dict]:
+    if domain:
+        session = simulation_sessions.get_latest_session_for_domain(
+            current_user["user_id"], domain, status="completed"
+        )
+        if not session:
+            return []
+        report = reports_repo.find_report_for_session(current_user["user_id"], session["id"])
+        return [_row_to_response(report)] if report else []
+
     rows = reports_repo.list_reports_for_user(current_user["user_id"])
     return [_row_to_response(r) for r in rows]
