@@ -205,9 +205,9 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
             "She's requesting a referral feature in the current sprint."
         ),
         "context_data": {
-            "sprint_board": PM_SCENES[1]["sprint_board"],
+            "sprint_board": PM_SCENES[1]["sprint_board"] if scene_number in (1, 3, 4) else None,
             "active_npcs": ["sara_khan"],
-            "prd_data": PM_SCENES[1]["prd_data"],
+            "prd_data": PM_SCENES[1]["prd_data"] if scene_number in (2, 3, 4) else None,
         },
         "characters": [
             {"id": "sara_khan", "name": "Sara Khan",
@@ -223,7 +223,7 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
         ],
         "response_format": "free_text",
         "response_choices": None,
-        "prompt_for_response": "How do you respond to Sara's request?",
+        "prompt_for_response": "Review the referral feature request against the current sprint capacity, negotiate with Sara, and explain that the current PRD lacks success metrics and scope.",
         "hint": (
             "Think about what information you need before making any commitment."
             if difficulty == "easy" else None
@@ -411,8 +411,8 @@ async def scenario_node(state: SimulationState) -> dict:
         scene_config = PM_SCENES.get(scene_number, PM_SCENES[1])
         active_npcs = scene_config.get("active_npcs", ["sara_khan"])
         npc_map = PM_NPCS
-        sprint = scene_config.get("sprint_board", {}) or PM_SCENES[1].get("sprint_board", {})
-        prd_data = scene_config.get("prd_data", {}) or PM_SCENES[1].get("prd_data", {})
+        sprint = (scene_config.get("sprint_board", {}) or PM_SCENES[1].get("sprint_board", {})) if scene_number in (1, 3, 4) else None
+        prd_data = (scene_config.get("prd_data", {}) or PM_SCENES[1].get("prd_data", {})) if scene_number in (2, 3, 4) else None
     elif domain == "data_analyst":
         from app.agents.domains.da.npcs import DA_VP_NPC, DA_SCENES
         scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
@@ -488,6 +488,13 @@ SPRINT BOARD GENERATION (invent fresh tickets — do not reuse ticket names/ids 
 PRD DOCUMENT — output the prd_data object exactly as provided below inside context_data.
 Do NOT modify the prd_data fields — preserve them verbatim from the seed data.
 The student will fill in the empty fields themselves via the frontend PRD editor.
+
+PROBLEM STATEMENT GENERATION (in the "prompt_for_response" field):
+- Generate a clear problem statement/instructions detailing exactly what the student needs to achieve in this scene:
+  - For Scene 1: Instruct the student to review the sprint board and negotiate the feature request with Sara Khan.
+  - For Scene 2: Instruct the student to make a trade-off decision (either cut a ticket to fit the referral or defer it to next sprint) and communicate the choice to both Sara and Rayan.
+  - For Scene 3: Instruct the student to align the engineering and marketing stakeholders on an MVP scope and update the PRD's Out of Scope and Success Metrics.
+  - For Scene 4: Instruct the student to defend their roadmap decisions to VP Zara Malik using data and ownership of the trade-offs.
 """
     elif domain == "frontend_engineer":
         domain_instruction = """
@@ -579,7 +586,7 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
   ],
   "response_format": "free_text",
   "response_choices": null,
-  "prompt_for_response": "What do you do?",
+  "prompt_for_response": "Concrete problem statement explaining exactly what task the student needs to perform to resolve this scene's challenges",
   "hint": {"null" if difficulty != "easy" else '"Think about what information you need before committing."'},
   "is_final_scene": {"true" if scene_number >= 4 else "false"},
   "extra": {{}}
