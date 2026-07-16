@@ -411,8 +411,8 @@ async def scenario_node(state: SimulationState) -> dict:
         scene_config = PM_SCENES.get(scene_number, PM_SCENES[1])
         active_npcs = scene_config.get("active_npcs", ["sara_khan"])
         npc_map = PM_NPCS
-        sprint = scene_config.get("sprint_board", {})
-        prd_data = scene_config.get("prd_data", {})
+        sprint = scene_config.get("sprint_board", {}) or PM_SCENES[1].get("sprint_board", {})
+        prd_data = scene_config.get("prd_data", {}) or PM_SCENES[1].get("prd_data", {})
     elif domain == "data_analyst":
         from app.agents.domains.da.npcs import DA_VP_NPC, DA_SCENES
         scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
