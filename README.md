@@ -10,34 +10,32 @@ evaluated, and a Career DNA Report is generated from the results.
 
 ## Architecture
 
-- **Core backend** (`app/`, everything except `app/agents/`) owns the
-  session/scene orchestration API, the database schema, and auth/user
-  management. It never implements scene-generation, response-evaluation, or
-  report-narrative logic itself — it calls into the agent layer through a
-  fixed contract (`app/schemas/agent_contracts.py`) instead.
-- **Agent layer** (`app/agents/`) owns scene generation, response
-  evaluation, and report narrative — all LLM-backed, built as a LangGraph
-  graph (`graph.py` + `nodes/`). Core backend dispatches to it via
-  `app/services/agent_client.py`, which switches between a deterministic
-  mock (`app/services/mock_agent.py`) and the real agent graph based on
-  `AGENT_LAYER_IMPL` — useful for local development and testing without
-  depending on a live LLM call.
-- **Data access**: all Supabase calls go through `app/repositories/`
-  (`supabase-py`, one file per table/concern) — never called directly from
-  services or routers. The new-flow repositories additionally support a
-  memory-only fallback for local dev without Supabase configured; a real
-  Supabase failure (vs. "not configured") surfaces as a clean `503` rather
-  than silently degrading.
-- **Schema migrations** run through Alembic + SQLAlchemy Core (`alembic/`)
-  — used only for versioning DDL, not as an ORM; the app's normal request
-  path stays entirely on `supabase-py`.
-- **API responses** are uniformly wrapped: `{"success": true, "data": ...}`
-  on success, `{"success": false, "error": {"message", "status_code",
-  "details"?}}` on any error (validation, known `HTTPException`s, or
-  unexpected crashes) — handled centrally in `app/core/response_envelope.py`.
-- **Auth** is fully custom (own JWTs via `PyJWT` + `bcrypt`), not Supabase
-  Auth — the backend connects with the `service_role` key and enforces
-  ownership checks in application code.
+| Layer | Lives in | Responsibility |
+|---|---|---|
+| **Core Backend** | `app/` (minus `agents/`) | Session/scene orchestration API, database schema, auth & user management |
+| **Agent Layer** | `app/agents/` | Scene generation, response evaluation, report narrative — LLM-backed, built as a LangGraph graph |
+| **Data Access** | `app/repositories/` | Every Supabase call, one file per table — never called directly from services or routers |
+| **Migrations** | `alembic/` | Versioned schema DDL via Alembic + SQLAlchemy Core |
+
+```
+Request flow:  Router → Service → Repository → Supabase
+```
+
+- Core backend never implements scene-generation or scoring logic — it calls the agent layer through a typed contract (`app/schemas/agent_contracts.py`).
+- `agent_client.py` switches between a deterministic mock and the real agent graph via `AGENT_LAYER_IMPL` — no LLM key needed for local dev.
+
+---
+
+## Best Practices
+
+| Practice | What it means |
+|---|---|
+| **REST resource design** | Every endpoint addresses a resource under `/api/v1`, not a verb-suffixed action — `POST /simulations`, not `/simulations/start` |
+| **Centralized validation** | Every request body is a typed Pydantic model; malformed input never reaches business logic |
+| **Uniform response contract** | Every response wrapped as `{success, data}` or `{success, error}`, enforced centrally by middleware — not by convention |
+| **Honest failure modes** | No Supabase configured → in-memory fallback (dev only); a *real* Supabase failure → clean `503`, never silently swallowed |
+| **Custom auth + ownership checks** | JWT access/refresh tokens (not Supabase Auth), ownership enforced in application code on every request |
+| **Real integration tests** | Most of the suite runs against a live database with self-cleaning fixtures — not a mocked database client |
 
 ---
 
