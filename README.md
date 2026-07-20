@@ -8,6 +8,19 @@ evaluated, and a Career DNA Report is generated from the results.
 
 ---
 
+## Tech Stack
+
+| Category | Tech |
+|---|---|
+| API framework | FastAPI, Pydantic |
+| Database | PostgreSQL (Supabase), SQLAlchemy Core |
+| Migrations | Alembic |
+| Auth | PyJWT, bcrypt |
+| AI / Agent layer | LangGraph, Groq / OpenRouter |
+| Testing | pytest |
+
+---
+
 ## Architecture
 
 | Layer | Lives in | Responsibility |
