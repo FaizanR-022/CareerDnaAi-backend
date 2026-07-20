@@ -4,12 +4,7 @@ FastAPI backend for the CareerDNA AI career simulator. Students work through
 AI-generated career simulation scenes one at a time; their responses are
 evaluated, and a Career DNA Report is generated from the results.
 
-## Branch Structure
-
-| Branch | Contents |
-|--------|----------|
-| `main` | **This branch** — FastAPI backend, agent layer, DB schema |
-| `master` | Next.js frontend |
+**Live:** [careerdnaai.vercel.app](https://careerdnaai.vercel.app) _(in active development)_
 
 ---
 
@@ -20,13 +15,13 @@ evaluated, and a Career DNA Report is generated from the results.
   management. It never implements scene-generation, response-evaluation, or
   report-narrative logic itself — it calls into the agent layer through a
   fixed contract (`app/schemas/agent_contracts.py`) instead.
-- **Agent layer** (`app/agents/`) is owned by the AI team — scene
-  generation, response evaluation, and report narrative, all LLM-backed.
-  Core backend dispatches to it via `app/services/agent_client.py`, which
-  switches between a deterministic mock (`app/services/mock_agent.py`) and
-  the real agent functions based on `AGENT_LAYER_IMPL` (`mock` by default —
-  the whole API works end-to-end without any real LLM calls or agent-layer
-  code being wired in yet).
+- **Agent layer** (`app/agents/`) owns scene generation, response
+  evaluation, and report narrative — all LLM-backed, built as a LangGraph
+  graph (`graph.py` + `nodes/`). Core backend dispatches to it via
+  `app/services/agent_client.py`, which switches between a deterministic
+  mock (`app/services/mock_agent.py`) and the real agent graph based on
+  `AGENT_LAYER_IMPL` — useful for local development and testing without
+  depending on a live LLM call.
 - **Data access**: all Supabase calls go through `app/repositories/`
   (`supabase-py`, one file per table/concern) — never called directly from
   services or routers. The new-flow repositories additionally support a
@@ -57,11 +52,9 @@ backend/
 │   ├── schemas/               # Pydantic request/response models + agent_contracts.py
 │   ├── repositories/          # All Supabase access (one file per table/concern)
 │   ├── services/               # Business logic + agent_client/mock_agent dispatch
-│   ├── agents/                  # Agent layer (AI team's — do not edit): director,
-│   │                             career_fit_agent, report_agent, llm
+│   ├── agents/                  # Agent layer: LangGraph graph, nodes, career fit + LLM
 │   └── api/v1/                   # FastAPI route handlers (thin layer), mounted under /api/v1
 ├── alembic/                  # Schema migrations (Alembic + SQLAlchemy Core)
-├── scenarios/                # JSON scenario content (Hassan's — do not edit)
 ├── database/                 # schema.sql — full current schema, reference only
 └── tests/                    # pytest test suite
 ```
@@ -152,14 +145,14 @@ cd backend
 pytest
 ```
 
-Most of the suite runs as **real integration tests against the Supabase
-project configured in `.env`** — not a mock database client. A shared
-fixture creates a disposable test user per test (cascading delete cleans up
-everything created against it), and skips cleanly (not a failure) if
-Supabase isn't reachable. `test_director.py` (agent-owned) and a handful of
-pure-logic files (schemas, security, mock agent, response envelope) don't
-need a DB at all. Scene/evaluation generation uses the deterministic mock
-agent by default — no real LLM key is required to run the suite.
+127 tests. Most of the suite runs as **real integration tests against the
+Supabase project configured in `.env`** — not a mock database client. A
+shared fixture creates a disposable test user per test (cascading delete
+cleans up everything created against it), and skips cleanly (not a failure)
+if Supabase isn't reachable. A handful of pure-logic files (schemas,
+security, mock agent, response envelope) don't need a DB at all. Scene/
+evaluation generation uses the deterministic mock agent by default — no
+real LLM key is required to run the suite.
 
 ---
 
@@ -188,8 +181,10 @@ Every response is wrapped:
 | `POST` | `/api/v1/user/onboarding` | Save onboarding profile data, returns 5 AI-generated calibration MCQs |
 | `GET`  | `/api/v1/users/me` | Current user's profile |
 | `PATCH`| `/api/v1/users/me` | Partial profile update |
+| `DELETE` | `/api/v1/users/me` | Deactivate your own account |
 | `GET`  / `DELETE` | `/api/v1/users/{user_id}` | Get / soft-delete a user (self or admin) |
 | `POST` | `/api/v1/simulations` | Start a new simulation, returns scene 1 |
+| `POST` | `/api/v1/simulations/{id}/scenes/{n}/messages` | Send an in-scene message, get an NPC reply (no evaluation, no scene advance) |
 | `POST` | `/api/v1/simulations/{id}/scenes/{n}/responses` | Submit a response to scene `n`, returns evaluation |
 | `POST` | `/api/v1/simulations/{id}/scenes` | Generate and return the next scene |
 | `GET`  | `/api/v1/simulations/{id}/scenes/current` | Re-fetch the current scene (no generation) |
@@ -202,14 +197,9 @@ Every response is wrapped:
 
 ## Team
 
-| Person | Owns |
-|--------|------|
-| Faizan | Core backend — `app/` (except `app/agents/`), DB schema, admin API |
-| Shayan, Ayesha | Agent layer — `app/agents/` (scene generation, response evaluation, report narrative), all LLM-backed |
-| Ali | Frontend (`master` branch) |
-| Hassan | Scenario content (`scenarios/`) |
-
-> `app/agents/` and `scenarios/` are the AI team's — do not modify without
-> their sign-off, even though core backend doesn't need to match their
-> *current* internal shapes (they're mid-revamp; backend builds to its own
-> contract, they adapt to it).
+| Person | Focus |
+|--------|-------|
+| Faizan | Core backend — API, database schema, auth |
+| Shayan, Ayesha | AI agent layer — scene generation, evaluation, report narrative |
+| Ali | Frontend |
+| Hassan | Simulation content |
