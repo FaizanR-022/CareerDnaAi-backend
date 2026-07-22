@@ -45,11 +45,11 @@ InteractiveConfig = DataExplorerInteractive | SqlEditorInteractive | PythonEdito
 
 # --- DA Scene 1 Specific Schemas ---
 class TableRow(BaseModel):
-    index: str = "0"
+    index: str | int = "0"
     Timestamp: str
     Ticker: str
-    Volume: str
-    RSI: str = "null"
+    Volume: int | float | str
+    RSI: int | float | str | None = "null"
     Type: str
     issues: str = Field(description="String indicating row status, e.g., 'OK' or 'Error: Null RSI'")
 
@@ -73,7 +73,7 @@ class InteractiveTasks(BaseModel):
 
 class DAContextData(BaseModel):
     interactive_tasks: InteractiveTasks
-    active_npcs: list[dict] = Field(default_factory=list)
+    active_npcs: list[dict | str] = Field(default_factory=list)
     scene_type: str = ""
 
 
@@ -131,7 +131,7 @@ class DA3InteractiveTasks(BaseModel):
 class DA3ContextData(BaseModel):
     interactive_tasks: DA3InteractiveTasks
     sidebar_guides: SidebarGuides
-    active_npcs: list[dict] = Field(default_factory=list)
+    active_npcs: list[dict | str] = Field(default_factory=list)
     scene_type: str = ""
 
 class DAScene3Content(SceneContent):
