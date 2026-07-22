@@ -167,34 +167,122 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
             "extra": {"fallback": True},
         }
     elif domain == "data_analyst":
-        return {
+        fallback = {
             "scene_number": scene_number,
             "domain": domain,
             "difficulty": difficulty,
-            "title": "Data Anomaly",
-            "narrative": "The VP of Analytics has noticed a sudden 15% drop in weekly active users (WAU) on the dashboard.",
-            "context_data": {
-                "active_npcs": ["vp_analytics"],
-                "scene_type": "anomaly_investigation",
-            },
+            "title": f"Data Analyst Scene {scene_number}",
+            "narrative": "Acme Corp has noticed anomalies in the transaction log and suspects institutional dumping.",
             "characters": [
-                {"id": "vp_analytics", "name": "VP Analytics", "role": "VP", "initial_trust": 50}
+                {"id": "sara_developer", "name": "Sara", "role": "Data Developer", "initial_trust": 50},
+                {"id": "acme_corp_client", "name": "Acme Corp", "role": "Client", "initial_trust": 50}
             ],
             "messages": [
                 {
-                    "sender": "VP Analytics",
+                    "sender": "Sara",
                     "channel": "slack",
-                    "content": "Hey, the WAU dashboard is showing a 15% drop since Tuesday. Is the data pipeline broken or is this a real drop?",
+                    "content": "Hey, Acme Corp flagged some weird transaction volumes. We need to check the pipeline and look for institutional dumping.",
                     "time_offset_minutes": 0,
                 }
             ],
-            "response_format": "free_text",
-            "response_choices": None,
-            "prompt_for_response": "How do you investigate this anomaly?",
-            "hint": "Check if there were any recent tracking changes or seasonal trends." if difficulty == "easy" else None,
-            "is_final_scene": scene_number >= 4,
+            "response_format": "interactive",
+            "prompt_for_response": "Configure the pipeline to begin investigation.",
+            "hint": "Impute the mean and keep the first duplicate." if difficulty == "easy" else None,
+            "is_final_scene": False,
+            "interactive_config": {},
             "extra": {"fallback": True},
+            "context_data": {
+                "active_npcs": [
+                    {"id": "sara_developer", "name": "Sara", "role": "Data Developer", "initial_trust": 50, "goal": "Ensure the data pipeline and queries are functioning correctly.", "vocabulary": "pipeline, imputation, SQL"},
+                    {"id": "acme_corp_client", "name": "Acme Corp", "role": "Client", "initial_trust": 50, "goal": "Understand if there is institutional dumping or RSI divergence.", "vocabulary": "institutional dumping, RSI divergence"}
+                ],
+                "interactive_tasks": {}
+            }
         }
+
+        if scene_number == 1:
+            fallback["interactive_config"] = {
+                "editor_type": "pipeline_config",
+                "available_imputation_strategies": ["impute_mean", "drop_rows", "impute_zero"],
+                "available_duplicate_handling": ["keep_first", "keep_last", "drop_all"]
+            }
+            fallback["context_data"]["interactive_tasks"]["data_explorer"] = {
+                "problem_statement": "The transaction log contains missing values and duplicates. Use the data pipeline to handle them.",
+                "flagged_constraints": ["null values in the RSI column", "duplicates in the ticker column"],
+                "schema": {"Timestamp": "VARCHAR", "Ticker": "VARCHAR", "Volume": "INTEGER", "RSI": "INTEGER", "Type": "VARCHAR"},
+                "pipeline_config": {
+                    "null_handling": {"options": ["drop rows with null values", "impute null values with mean/median/mode"], "correct": "drop rows with null values"},
+                    "duplicate_handling": {"options": ["drop duplicates", "keep duplicates"], "correct": "drop duplicates"}
+                },
+                "table_data": [
+                    {"index": "1", "Timestamp": "2022-01-01", "Ticker": "AAPL", "Volume": "100", "RSI": "null", "Type": "buy", "issues": "Error: Null RSI"},
+                    {"index": "2", "Timestamp": "2022-01-02", "Ticker": "AAPL", "Volume": "200", "RSI": "50", "Type": "sell", "issues": "OK"},
+                    {"index": "3", "Timestamp": "2022-01-03", "Ticker": "AAPL", "Volume": "300", "RSI": "null", "Type": "buy", "issues": "Error: Null RSI"},
+                    {"index": "4", "Timestamp": "2022-01-04", "Ticker": "AAPL", "Volume": "400", "RSI": "55", "Type": "sell", "issues": "OK"},
+                    {"index": "5", "Timestamp": "2022-01-05", "Ticker": "AAPL", "Volume": "500", "RSI": "60", "Type": "buy", "issues": "OK"},
+                    {"index": "6", "Timestamp": "2022-01-06", "Ticker": "AAPL", "Volume": "600", "RSI": "null", "Type": "sell", "issues": "Error: Null RSI"},
+                    {"index": "7", "Timestamp": "2022-01-07", "Ticker": "AAPL", "Volume": "700", "RSI": "65", "Type": "buy", "issues": "OK"},
+                    {"index": "8", "Timestamp": "2022-01-08", "Ticker": "AAPL", "Volume": "800", "RSI": "null", "Type": "sell", "issues": "Error: Null RSI"},
+                    {"index": "9", "Timestamp": "2022-01-09", "Ticker": "AAPL", "Volume": "900", "RSI": "70", "Type": "buy", "issues": "OK"},
+                    {"index": "10", "Timestamp": "2022-01-10", "Ticker": "AAPL", "Volume": "1000", "RSI": "75", "Type": "sell", "issues": "OK"},
+                    {"index": "11", "Timestamp": "2022-01-11", "Ticker": "AAPL", "Volume": "1100", "RSI": "null", "Type": "buy", "issues": "Error: Null RSI"},
+                    {"index": "12", "Timestamp": "2022-01-12", "Ticker": "AAPL", "Volume": "1200", "RSI": "80", "Type": "sell", "issues": "OK"},
+                    {"index": "13", "Timestamp": "2022-01-13", "Ticker": "AAPL", "Volume": "1300", "RSI": "null", "Type": "buy", "issues": "Error: Null RSI"},
+                    {"index": "14", "Timestamp": "2022-01-14", "Ticker": "AAPL", "Volume": "1400", "RSI": "85", "Type": "sell", "issues": "OK"},
+                    {"index": "15", "Timestamp": "2022-01-15", "Ticker": "AAPL", "Volume": "1500", "RSI": "null", "Type": "buy", "issues": "Error: Null RSI"}
+                ]
+            }
+        elif scene_number == 2:
+            fallback["prompt_for_response"] = "Build a SQL query to extract the required data."
+            fallback["interactive_config"] = {
+                "editor_type": "sql",
+                "initial_query": None
+            }
+            fallback["context_data"]["interactive_tasks"]["query_builder"] = {
+                "problem_statement": "Write a query to extract timestamp and volume.",
+                "editor_type": "sql",
+                "default_code": "-- Type SELECT timestamp, volume FROM data...",
+                "helper_snippets": ["SELECT timestamp, volume", "FROM transaction_log"]
+            }
+        elif scene_number == 3:
+            fallback["prompt_for_response"] = "Write Python code to analyze the data."
+            fallback["interactive_config"] = {
+                "editor_type": "python",
+                "initial_code": None
+            }
+            fallback["context_data"]["interactive_tasks"]["python_sandbox"] = {
+                "is_completed": False,
+                "problem_statement": "Use python to visualize the data.",
+                "editor_type": "python",
+                "default_code": "# Type df.plot(x='timestamp', y='volume')...",
+                "helper_snippets": ["df.plot(x='timestamp', y='volume')", "print(df.describe())"],
+                "validation": {"required_functions": ["plot", "describe"]}
+            }
+            fallback["context_data"]["sidebar_guides"] = {
+                "anomaly_guide": {
+                    "title": "Anomaly Guide",
+                    "institutional_divergence": "Explanation of institutional divergence.",
+                    "rsi_momentum": "Explanation of RSI momentum."
+                }
+            }
+        elif scene_number >= 4:
+            fallback["prompt_for_response"] = "Select the correct hypothesis based on your findings."
+            fallback["interactive_config"] = {
+                "editor_type": "insights",
+                "hypothesis_options": ["hyp_divergence", "hyp_seasonality", "hyp_bot_traffic"]
+            }
+            fallback["context_data"]["interactive_tasks"]["insights_console"] = {
+                "problem_statement": "Identify the primary cause of the anomaly.",
+                "editor_type": "insights",
+                "hypothesis_options": [
+                    {"id": "hyp_1", "title": "Institutional Dumping", "description": "Large volume sell-offs.", "is_correct": True},
+                    {"id": "hyp_2", "title": "Retail Panic", "description": "Small volume sell-offs.", "is_correct": False},
+                    {"id": "hyp_3", "title": "Bot Malfunction", "description": "High frequency tiny trades.", "is_correct": False}
+                ]
+            }
+            fallback["is_final_scene"] = True
+            
+        return fallback
     pm_context_data = {
         "active_npcs": ["sara_khan"],
     }
@@ -389,6 +477,9 @@ async def scenario_node(state: SimulationState) -> dict:
             raw = response.content.strip()
             raw = raw.replace("```json", "").replace("```", "").strip()
             scene = json.loads(raw)
+            if scene_number >= 4:
+                scene["is_final_scene"] = True
+                
             logger.info(
                 f"[LLM_OK] scenario_node → SQA scene {scene_number} generated from LLM "
                 f"(dan_trust={dan_trust})"
@@ -409,6 +500,128 @@ async def scenario_node(state: SimulationState) -> dict:
                 "is_final_scene": fallback["is_final_scene"],
             }
 
+    # ── DA domain: interactive with structured output ──────────────────────────
+    if domain == "data_analyst":
+        from app.agents.domains.da.npcs import DA_NPCS, DA_SCENES
+        from app.schemas.agent_contracts import SceneContent, DAScene1Content
+        
+        scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
+        active_npcs = scene_config.get("active_npcs", [])
+        
+        # Build NPC context with trust levels
+        npc_context_parts = []
+        for npc_id in active_npcs:
+            npc = DA_NPCS.get(npc_id, {})
+            trust = _get_npc_trust(state, npc_id)
+            npc_context_parts.append(
+                f"- {npc.get('name')} ({npc.get('role')}): "
+                f"trust {trust}/100, goal: {npc.get('goal')}, "
+                f"vocabulary: {npc.get('vocabulary')}"
+            )
+        npc_context = "\n".join(npc_context_parts)
+        
+        prompt = f"""You are generating scene {scene_number} of a Data Analyst career simulation.
+        
+COMPONENT 1 — DOMAIN CONTEXT:
+Domain: data_analyst | Scene type: {scene_config.get('type')}
+{scene_config.get('context')}
+
+COMPONENT 2 — SESSION STATE:
+Difficulty: {difficulty}
+Scene number: {scene_number}
+Active NPCs and trust levels:
+{npc_context}
+
+COMPONENT 3 — TECHNICAL CONSTRAINTS:
+For this scene, configure the interactive_config based on the scene type exactly:
+- Scene 1 (pipeline_config): interactive_config.editor_type = "pipeline_config"
+- Scene 2 (sql_editor): interactive_config.editor_type = "sql"
+- Scene 3 (python_editor): interactive_config.editor_type = "python"
+- Scene 4 (insights_console): interactive_config.editor_type = "insights"
+
+Ensure response_format is "interactive". Make dialogue natural.
+"""
+
+        if scene_number == 1:
+            prompt += """
+COMPONENT 4 — STRICT JSON HIERARCHY:
+You must respect the strict boundary between root-level fields and nested context fields.
+
+ROOT-LEVEL FIELDS (You MUST generate these at the top level):
+- 'scene_number' (integer)
+- 'domain' (string)
+- 'difficulty' (string)
+- 'title' (string)
+- 'narrative' (string)
+- 'characters' (array of objects)
+- 'messages' (array of objects)
+- 'prompt_for_response' (string)
+- 'response_format' (string)
+- 'interactive_config' (object)
+- 'context_data' (object)
+
+NESTED FIELDS:
+Do NOT place 'narrative', 'prompt_for_response', or 'interactive_config' inside 'context_data'. They belong at the root.
+'context_data' should ONLY contain 'active_npcs' and 'interactive_tasks'.
+
+COMPONENT 5 — SCENE 1 DATA EXPLORER GENERATION:
+You must fully populate the context_data.interactive_tasks.data_explorer object.
+CRITICAL: You MUST include ALL of the following keys:
+1. 'problem_statement' (string)
+2. 'flagged_constraints' (array of strings)
+3. 'pipeline_config' (object with null_handling and duplicate_handling)
+4. 'schema' (mapping of columns to types)
+5. 'table_data' (array of 3-20 row objects. EVERY row MUST have an 'issues' key!).
+Do not omit any of these keys.
+"""
+            schema_str = DAScene1Content.model_json_schema()
+            prompt += f"\n\nCRITICAL: You MUST return a single valid JSON object. Do NOT wrap it in any tags. It MUST exactly match this JSON schema:\n```json\n{json.dumps(schema_str, indent=2)}\n```\n"
+            llm = get_llm(model="llama-3.1-8b-instant", temperature=0.6)
+            structured_llm = llm.with_structured_output(DAScene1Content, method="json_mode")
+        elif scene_number == 3:
+            prompt += """
+COMPONENT 4 — SCENE 3 PYTHON SANDBOX GENERATION:
+You must fully populate the context_data object for a Python coding task.
+CRITICAL: You MUST include ALL of the following keys inside context_data:
+1. 'interactive_tasks.python_sandbox': Must include 'editor_type' set to "python", a 'default_code' comment, 3 'helper_snippets' (e.g., "df.plot(...)"), and 'validation' keywords.
+2. 'sidebar_guides': Must include the 'anomaly_guide' explaining institutional divergence and RSI momentum to the user.
+Do NOT place root-level fields (narrative, messages) inside context_data.
+"""
+            from app.schemas.agent_contracts import DAScene3Content
+            schema_str = DAScene3Content.model_json_schema()
+            prompt += f"\n\nCRITICAL: You MUST return a single valid JSON object. Do NOT wrap it in any tags. It MUST exactly match this JSON schema:\n```json\n{json.dumps(schema_str, indent=2)}\n```\n"
+            llm = get_llm(model="llama-3.1-8b-instant", temperature=0.6)
+            structured_llm = llm.with_structured_output(DAScene3Content, method="json_mode")
+        else:
+            llm = get_llm(model="llama-3.1-8b-instant", temperature=0.6)
+            structured_llm = llm.with_structured_output(SceneContent)
+
+        try:
+            logger.info(f"[llm-prompt] {prompt}")
+            response = await acall_llm_with_retry(
+                structured_llm,
+                [SystemMessage(content=prompt)]
+            )
+            scene_dict = response.model_dump(by_alias=True)
+            if scene_number >= 4:
+                scene_dict["is_final_scene"] = True
+                
+            logger.info(f"[LLM_OK] scenario_node → DA scene {scene_number} generated structured")
+            return {
+                "current_scene": scene_dict,
+                "is_final_scene": scene_dict.get("is_final_scene", False),
+            }
+        except Exception as e:
+            logger.warning(
+                f"[LLM_FALLBACK] scenario_node DA scene {scene_number} → using static fallback "
+                f"(reason: {e})"
+            )
+            fallback = _fallback_scene(scene_number, domain, difficulty)
+            return {
+                "current_scene": fallback,
+                "is_final_scene": fallback["is_final_scene"],
+            }
+
     # ── PM domain ─────────────────────────────────────────────────────────────
     if domain == "product_manager":
         from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
@@ -417,13 +630,6 @@ async def scenario_node(state: SimulationState) -> dict:
         npc_map = PM_NPCS
         sprint = (scene_config.get("sprint_board", {}) or PM_SCENES[1].get("sprint_board", {})) if scene_number in (1, 3, 4) else None
         prd_data = (scene_config.get("prd_data", {}) or PM_SCENES[1].get("prd_data", {})) if scene_number in (2, 3, 4) else None
-    elif domain == "data_analyst":
-        from app.agents.domains.da.npcs import DA_VP_NPC, DA_SCENES
-        scene_config = DA_SCENES.get(scene_number, DA_SCENES[1])
-        active_npcs = scene_config.get("active_npcs", ["vp_analytics"])
-        npc_map = {"vp_analytics": DA_VP_NPC}
-        sprint = {}
-        prd_data = {}
     elif domain == "frontend_engineer":
         from app.agents.domains.fe.npcs import FE_CLIENT_NPC, FE_SCENES
         scene_config = FE_SCENES.get(scene_number, FE_SCENES[1])
@@ -511,12 +717,6 @@ SCENARIO GENERATION (invent fresh specifics — do not reuse details from prior 
 SCENARIO GENERATION (invent fresh specifics — do not reuse details from prior sessions):
 - Invent realistic backend incidents, e.g., slow database queries on specific tables, API latency spikes, or memory leaks.
 - Vary the exact endpoint paths, error codes, and trace span latency numbers each generation.
-"""
-    elif domain == "data_analyst":
-        domain_instruction = """
-SCENARIO GENERATION (invent fresh specifics — do not reuse details from prior sessions):
-- Invent realistic data discrepancies, e.g., tracking pixel drops on specific pages, SQL pipeline failures, or dashboard mismatches.
-- Vary the exact column names, table names, percentage drops, and date ranges each generation.
 """
 
     if domain == "product_manager" and sprint:
@@ -608,6 +808,9 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
         # Also strip manually in case stop sequence didn't catch it
         raw = raw.replace("```json", "").replace("```", "").strip()
         scene = json.loads(raw)
+
+        if scene_number >= 4:
+            scene["is_final_scene"] = True
 
         # Post-process PM domain keys to completely remove them instead of sending nulls
         if domain == "product_manager" and "context_data" in scene:

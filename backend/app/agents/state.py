@@ -10,6 +10,7 @@ class SimulationState(TypedDict):
     scene_number: int
     user_profile: dict   # {self_rating, core_interests}
     history: list        # list of {scene, evaluation} dicts
+    da_validation_status: dict  # Tracks Scene 1-4 DA specific validation states
 
     # Set by supervisor_node
     active_domain: str

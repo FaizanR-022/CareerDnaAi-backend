@@ -26,19 +26,20 @@ logger = logging.getLogger(__name__)
 
 # ─── CHECKPOINTER ────────────────────────────────────────────────────────────
 
-def _build_checkpointer():
-    try:
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def get_graph():
+    from app.core.config import get_settings
+    settings = get_settings()
+    db_url = settings.database_url
+    if db_url:
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        from app.core.config import get_settings
-        settings = get_settings()
-        db_url = settings.database_url
-        checkpointer = AsyncPostgresSaver.from_conn_string(db_url)
-        logger.info("Using PostgresSaver checkpointer")
-        return checkpointer
-    except Exception as e:
-        logger.warning(f"PostgresSaver unavailable: {e} — using MemorySaver")
+        async with AsyncPostgresSaver.from_conn_string(db_url) as checkpointer:
+            yield build_graph(checkpointer)
+    else:
         from langgraph.checkpoint.memory import MemorySaver
-        return MemorySaver()
+        yield build_graph(MemorySaver())
 
 # ─── INTERRUPT NODE ──────────────────────────────────────────────────────────
 
@@ -96,14 +97,7 @@ def build_graph(checkpointer):
 
     return builder.compile(checkpointer=checkpointer)
 
-_graph_instance = None
 
-def get_graph():
-    global _graph_instance
-    if _graph_instance is None:
-        checkpointer = _build_checkpointer()
-        _graph_instance = build_graph(checkpointer)
-    return _graph_instance
 
 # ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -161,45 +155,45 @@ async def run_scenario_step(ctx: SceneGenerationContext) -> SceneContent:
     """
     config = _get_config(ctx.simulation_session_id)
 
-    # Check if there is existing checkpointed state for this session
-    graph = get_graph()
-    try:
-        existing = await graph.aget_state(config)
-        has_state = existing and existing.values
-    except Exception:
-        has_state = False
+    async with get_graph() as graph:
+        # Check if there is existing checkpointed state for this session
+        try:
+            existing = await graph.aget_state(config)
+            has_state = existing and existing.values
+        except Exception:
+            has_state = False
+    
+        if not has_state:
+            # First scene — start fresh
+            initial_state = _ctx_to_state(ctx)
+            result = await graph.ainvoke(initial_state, config=config)
+        else:
+            # If the graph is not waiting at wait_for_next_scene_node, it means this
+            # scene was already generated and the DB just failed to save it previously.
+            # Return the cached scene to allow the DB to catch up.
+            if "wait_for_next_scene_node" not in existing.next:
+                scene_dict = existing.values.get("current_scene", {})
+                if scene_dict:
+                    return SceneContent(**scene_dict)
+    
+            # Subsequent scene — graph already paused at wait_for_next_scene_node
+            # Update scene_number in state then resume
+            await graph.aupdate_state(
+                config,
+                {
+                    "scene_number": ctx.scene_number,
+                    "difficulty": ctx.difficulty,
+                    "conversation_history": [],
+                    "active_npc_id": "",
+                    "student_message": ""
+                }
+            )
+            result = await graph.ainvoke(Command(resume=True), config=config)
 
-    if not has_state:
-        # First scene — start fresh
-        initial_state = _ctx_to_state(ctx)
-        result = await graph.ainvoke(initial_state, config=config)
-    else:
-        # If the graph is not waiting at wait_for_next_scene_node, it means this
-        # scene was already generated and the DB just failed to save it previously.
-        # Return the cached scene to allow the DB to catch up.
-        if "wait_for_next_scene_node" not in existing.next:
-            scene_dict = existing.values.get("current_scene", {})
-            if scene_dict:
-                return SceneContent(**scene_dict)
-
-        # Subsequent scene — graph already paused at wait_for_next_scene_node
-        # Update scene_number in state then resume
-        await graph.aupdate_state(
-            config,
-            {
-                "scene_number": ctx.scene_number,
-                "difficulty": ctx.difficulty,
-                "conversation_history": [],
-                "active_npc_id": "",
-                "student_message": ""
-            }
-        )
-        result = await graph.ainvoke(Command(resume=True), config=config)
-
-    scene_dict = result.get("current_scene", {})
-    if not scene_dict:
-        raise ValueError("scenario_node returned no scene")
-    return SceneContent(**scene_dict)
+        scene_dict = result.get("current_scene", {})
+        if not scene_dict:
+            raise ValueError("scenario_node returned no scene")
+        return SceneContent(**scene_dict)
 
 async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
     """
@@ -214,35 +208,34 @@ async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
         structured_str = json.dumps(ctx.user_response.structured, indent=2)
         student_response += f"\n\n[Interactive Board Data Provided by User]:\n{structured_str}"
     
-    graph = get_graph()
-
-    # Ensure a checkpoint exists before resuming
-    try:
-        existing = await graph.aget_state(config)
-        has_state = existing and existing.values
-    except Exception:
-        has_state = False
-
-    if not has_state:
-        raise RuntimeError("No checkpoint found for evaluation step. The graph must be initialized via generate_scene first.")
-
-    # If the graph is not waiting at human_input_node, it means this evaluation
-    # already ran, but the DB failed to save it previously. Return the cached eval.
-    if "human_input_node" not in existing.next:
-        evaluation_dict = existing.values.get("current_evaluation", {})
-        if evaluation_dict:
-            return EvaluationResult(**evaluation_dict)
-
-    # Resume graph from interrupt with student response
-    result = await graph.ainvoke(
-        Command(resume=student_response),
-        config=config
-    )
-
-    evaluation_dict = result.get("current_evaluation", {})
-    if not evaluation_dict:
-        raise ValueError("evaluation_node returned no evaluation")
-    return EvaluationResult(**evaluation_dict)
+    async with get_graph() as graph:
+        # Ensure a checkpoint exists before resuming
+        try:
+            existing = await graph.aget_state(config)
+            has_state = existing and existing.values
+        except Exception:
+            has_state = False
+    
+        if not has_state:
+            raise RuntimeError("No checkpoint found for evaluation step. The graph must be initialized via generate_scene first.")
+    
+        # If the graph is not waiting at human_input_node, it means this evaluation
+        # already ran, but the DB failed to save it previously. Return the cached eval.
+        if "human_input_node" not in existing.next:
+            evaluation_dict = existing.values.get("current_evaluation", {})
+            if evaluation_dict:
+                return EvaluationResult(**evaluation_dict)
+    
+        # Resume graph from interrupt with student response
+        result = await graph.ainvoke(
+            Command(resume=student_response),
+            config=config
+        )
+    
+        evaluation_dict = result.get("current_evaluation", {})
+        if not evaluation_dict:
+            raise ValueError("evaluation_node returned no evaluation")
+        return EvaluationResult(**evaluation_dict)
 
 async def run_fit_report_step(ctx: FitReportContext) -> FitReportResult:
     """

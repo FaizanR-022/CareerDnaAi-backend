@@ -1,57 +1,68 @@
 # Data Analyst domain NPCs and scene configs
 
-DA_VP_NPC = {
-    "npc_id": "vp_analytics",
-    "name": "Jordan",
-    "role": "VP of Analytics",
-    "personality": (
-        "Data-driven, skeptical of conclusions without evidence. "
-        "Asks probing questions. Respects analysts who challenge their own assumptions."
-    ),
-    "goal": "Understand root cause of metric drop before making business decisions.",
-    "vocabulary": "metrics, root cause, correlation vs causation, data pipeline, cohort analysis",
-    "hard_constraints": [
-        "does not know this is a simulation",
-        "does not know the student is being assessed",
-    ],
-    "trust_start": 55,
+# Data Analyst domain NPCs and scene configs
+
+DA_NPCS = {
+    "sara_developer": {
+        "npc_id": "sara_developer",
+        "name": "Sara",
+        "role": "Data Developer",
+        "personality": "Technical, focused on clean pipelines and queries.",
+        "goal": "Ensure the data pipeline and queries are functioning correctly.",
+        "vocabulary": "pipeline, imputation, SQL, joins, timestamp, volume",
+        "hard_constraints": [
+            "does not know this is a simulation",
+            "does not know the student is being assessed",
+        ],
+        "trust_start": 50,
+    },
+    "acme_corp_client": {
+        "npc_id": "acme_corp_client",
+        "name": "Acme Corp",
+        "role": "Client",
+        "personality": "Business-oriented, concerned about market anomalies.",
+        "goal": "Understand if there is institutional dumping or RSI divergence.",
+        "vocabulary": "institutional dumping, RSI divergence, hypothesis, market trends",
+        "hard_constraints": [
+            "does not know this is a simulation",
+            "does not know the student is being assessed",
+        ],
+        "trust_start": 50,
+    }
 }
 
 DA_SCENES = {
     1: {
-        "type": "metric_anomaly",
+        "type": "pipeline_config",
         "context": (
-            "The weekly active users metric dropped 38% overnight on the dashboard. "
-            "Jordan (VP Analytics) has flagged it urgently. "
-            "Student must investigate: is it a real drop or a tracking/pipeline issue?"
+            "Acme Corp has noticed anomalies in the transaction log and suspects institutional dumping. "
+            "Sara needs you to configure the data pipeline to handle missing values and duplicates."
         ),
-        "active_npcs": ["vp_analytics"],
+        "active_npcs": ["sara_developer", "acme_corp_client"],
     },
     2: {
-        "type": "data_investigation",
+        "type": "sql_editor",
         "context": (
-            "The drop is confirmed real. Student must clean a messy dataset "
-            "and identify the root cause across 3 possible explanations: "
-            "a new feature rollout, a competitor announcement, or seasonal patterns."
+            "With the pipeline configured, Sara asks you to write a PostgreSQL query "
+            "to extract the relevant data from the transaction_log table, focusing on timestamp and volume."
         ),
-        "active_npcs": ["vp_analytics"],
+        "active_npcs": ["sara_developer"],
     },
     3: {
-        "type": "insight_presentation",
+        "type": "python_editor",
         "context": (
-            "Student presents their findings to Jordan. "
-            "Jordan pushes back on the methodology and asks about confounding variables. "
-            "Student must distinguish correlation from causation."
+            "Now that you have the data, Sara wants you to write a pandas script to visualize it. "
+            "Plot the volume against the timestamp to check for RSI divergence."
         ),
-        "active_npcs": ["vp_analytics"],
+        "active_npcs": ["sara_developer", "acme_corp_client"],
     },
     4: {
-        "type": "followthrough",
+        "type": "insights_console",
         "context": (
-            "Jordan asks the student to recommend a course of action based on findings. "
-            "Student must propose a specific, measurable intervention. FINAL SCENE."
+            "Review the visualized data and provide your final analysis to Acme Corp. "
+            "Select the most likely hypothesis (e.g., RSI divergence) and provide a detailed text analysis."
         ),
-        "active_npcs": ["vp_analytics"],
+        "active_npcs": ["acme_corp_client"],
         "is_final": True,
     }
 }

@@ -177,34 +177,34 @@ async def send_message(
     
     # Get current graph state from checkpointer
     config = {"configurable": {"thread_id": session_id}}
-    graph = get_graph()
     
-    try:
-        existing = await graph.aget_state(config)
-        if not existing or not existing.values:
-            raise HTTPException(status_code=409, detail="No active scene — start simulation first")
-    except Exception as e:
-        raise HTTPException(status_code=409, detail=f"Cannot retrieve session state: {e}")
-    
-    current_state = existing.values
-    
-    # Update state with student message and run npc_reply_node directly
-    from app.agents.nodes.npc_reply import npc_reply_node
-    
-    updated_state = dict(current_state)
-    updated_state["student_message"] = student_message
-    
-    npc_result = await npc_reply_node(updated_state)
-    
-    # Persist updated conversation_history back to graph state
-    await graph.aupdate_state(
-        config,
-        {
-            "conversation_history": npc_result["conversation_history"],
-            "npc_reply": npc_result["npc_reply"],
-            "active_npc_id": npc_result["active_npc_id"],
-        }
-    )
+    async with get_graph() as graph:
+        try:
+            existing = await graph.aget_state(config)
+            if not existing or not existing.values:
+                raise HTTPException(status_code=409, detail="No active scene — start simulation first")
+        except Exception as e:
+            raise HTTPException(status_code=409, detail=f"Cannot retrieve session state: {e}")
+        
+        current_state = existing.values
+        
+        # Update state with student message and run npc_reply_node directly
+        from app.agents.nodes.npc_reply import npc_reply_node
+        
+        updated_state = dict(current_state)
+        updated_state["student_message"] = student_message
+        
+        npc_result = await npc_reply_node(updated_state)
+        
+        # Persist updated conversation_history back to graph state
+        await graph.aupdate_state(
+            config,
+            {
+                "conversation_history": npc_result["conversation_history"],
+                "npc_reply": npc_result["npc_reply"],
+                "active_npc_id": npc_result["active_npc_id"],
+            }
+        )
     
     # Also persist to Supabase npc_memory table for resume
     active_npc_id = npc_result["active_npc_id"]
@@ -230,6 +230,46 @@ def _get_npc_name(history: list) -> str:
     return "NPC"
 
 
+def _evaluate_da_submission(scene_number: int, user_response: SubmittedResponse) -> dict:
+    validation = {"is_valid": False, "errors": []}
+    structured = user_response.structured or {}
+    
+    if scene_number == 1:
+        if structured.get("imputation_strategy") == "impute_mean" and structured.get("duplicate_handling") == "keep_first":
+            validation["is_valid"] = True
+        else:
+            validation["errors"].append("Incorrect pipeline configuration. Expected impute_mean and keep_first.")
+            
+    elif scene_number == 2:
+        query = (structured.get("query") or "").lower()
+        required = ["select", "from", "transaction_log", "timestamp", "volume"]
+        missing = [kw for kw in required if kw not in query]
+        if not missing:
+            validation["is_valid"] = True
+        else:
+            validation["errors"].append(f"SQL missing required keywords: {', '.join(missing)}")
+            
+    elif scene_number == 3:
+        code = (structured.get("code") or "").replace(" ", "").replace('"', "'")
+        if "df.plot" in code and "x='timestamp'" in code and "y='volume'" in code:
+            validation["is_valid"] = True
+        else:
+            validation["errors"].append("Python code missing df.plot with x='timestamp' and y='volume'.")
+            
+    elif scene_number == 4:
+        hyp = structured.get("hypothesis_id")
+        text = structured.get("text_analysis") or ""
+        if hyp == "hyp_divergence" and len(text) >= 30:
+            validation["is_valid"] = True
+        else:
+            if hyp != "hyp_divergence":
+                validation["errors"].append("Incorrect hypothesis selected.")
+            if len(text) < 30:
+                validation["errors"].append("Text analysis is too short (must be >= 30 chars).")
+                
+    return validation
+
+
 async def submit_response(
     session_id: str,
     current_user: dict,
@@ -238,20 +278,28 @@ async def submit_response(
 ) -> dict:
     from app.agents.graph import get_graph
     config = {"configurable": {"thread_id": session_id}}
-    graph = get_graph()
-    existing = await graph.aget_state(config)
     
-    state = existing.values if existing else {}
-    conv_history = state.get("conversation_history", [])
-    all_student_messages = " | ".join([
-        msg["content"] for msg in conv_history 
-        if msg["role"] == "student"
-    ])
+    async with get_graph() as graph:
+        existing = await graph.aget_state(config)
+        
+        state = existing.values if existing else {}
+        conv_history = state.get("conversation_history", [])
+        all_student_messages = " | ".join([
+            msg["content"] for msg in conv_history 
+            if msg["role"] == "student"
+        ])
+        
+        # Use combined messages if available, otherwise use what was submitted
+        user_response.raw_text = all_student_messages or (user_response.raw_text or "")
     
-    # Use combined messages if available, otherwise use what was submitted
-    user_response.raw_text = all_student_messages or (user_response.raw_text or "")
-
-    eval_ctx, session, scene_content, scene_id = await asyncio.to_thread(_prepare_submit, session_id, current_user, scene_number, user_response)
+        eval_ctx, session, scene_content, scene_id = await asyncio.to_thread(_prepare_submit, session_id, current_user, scene_number, user_response)
+        
+        if session["domain"] == "data_analyst":
+            validation = _evaluate_da_submission(scene_number, user_response)
+            await graph.aupdate_state(config, {"da_validation_status": validation})
+            # Pass validation to LLM evaluator
+            user_response.raw_text = (user_response.raw_text or "") + f"\n\n[Backend DA Validation]: {validation}"
+    
     result = await agent_client.evaluate_response(eval_ctx)
     return await asyncio.to_thread(_finalize_submit, session_id, scene_id, result, scene_content, session, scene_number)
 

@@ -7,7 +7,7 @@ Domain = Literal[
 ]
 Difficulty = Literal["easy", "medium", "hard"]
 Sentiment = Literal["positive", "neutral", "negative"]
-ResponseFormat = Literal["free_text", "structured", "code"]
+ResponseFormat = Literal["free_text", "structured", "code", "interactive"]
 
 
 class Character(BaseModel):
@@ -24,6 +24,59 @@ class SceneMessage(BaseModel):
     time_offset_minutes: int = 0
 
 
+class DataExplorerInteractive(BaseModel):
+    editor_type: Literal["pipeline_config"] = "pipeline_config"
+    available_imputation_strategies: list[str] = Field(default=["impute_mean", "drop_rows", "impute_zero"])
+    available_duplicate_handling: list[str] = Field(default=["keep_first", "keep_last", "drop_all"])
+
+class SqlEditorInteractive(BaseModel):
+    editor_type: Literal["sql"] = "sql"
+    initial_query: str | None = None
+
+class PythonEditorInteractive(BaseModel):
+    editor_type: Literal["python"] = "python"
+    initial_code: str | None = None
+
+class InsightsConsoleInteractive(BaseModel):
+    editor_type: Literal["insights"] = "insights"
+    hypothesis_options: list[str] = Field(default=["hyp_divergence", "hyp_seasonality", "hyp_bot_traffic"])
+
+InteractiveConfig = DataExplorerInteractive | SqlEditorInteractive | PythonEditorInteractive | InsightsConsoleInteractive
+
+# --- DA Scene 1 Specific Schemas ---
+class TableRow(BaseModel):
+    index: str = "0"
+    Timestamp: str
+    Ticker: str
+    Volume: str
+    RSI: str = "null"
+    Type: str
+    issues: str = Field(description="String indicating row status, e.g., 'OK' or 'Error: Null RSI'")
+
+class PipelineDropdown(BaseModel):
+    options: list[str]
+    correct: str
+
+class PipelineConfig(BaseModel):
+    null_handling: PipelineDropdown
+    duplicate_handling: PipelineDropdown
+
+class DataExplorerTask(BaseModel):
+    problem_statement: str = Field(description="Write a 2-sentence scenario. Example: 'The RSI column is missing data due to sensor timeout. Fix it using imputation.'")
+    flagged_constraints: list[str]
+    schema_map: dict[str, str] = Field(default={"Timestamp": "VARCHAR", "Ticker": "VARCHAR", "Volume": "INTEGER", "RSI": "INTEGER", "Type": "VARCHAR"}, alias="schema", description="A flat dictionary of column names to SQL types.")
+    pipeline_config: PipelineConfig
+    table_data: list[TableRow] = Field(min_length=3, max_length=25, description="A JSON array of 3 to 20 objects. Ensure every object includes the 'issues' field.")
+
+class InteractiveTasks(BaseModel):
+    data_explorer: DataExplorerTask
+
+class DAContextData(BaseModel):
+    interactive_tasks: InteractiveTasks
+    active_npcs: list[dict] = Field(default_factory=list)
+    scene_type: str = ""
+
+
 class SceneContent(BaseModel):
     """Agent layer's output for one scene. `context_data` and `extra` are
     opaque to backend — stored as JSONB in full, never destructured."""
@@ -38,10 +91,54 @@ class SceneContent(BaseModel):
     messages: list[SceneMessage] = Field(default_factory=list)
     response_format: ResponseFormat = "free_text"
     response_choices: list[str] | None = None
-    prompt_for_response: str
+    prompt_for_response: str = Field(default="Please complete the active task to proceed to the next scene.")
     hint: str | None = None
     is_final_scene: bool = False
+    interactive_config: InteractiveConfig | None = None
     extra: dict = Field(default_factory=dict)
+
+
+class DAScene1Content(SceneContent):
+    context_data: DAContextData
+    # Override fields that use Union/Optional to prevent Groq API 'anyOf' validation crashes
+    interactive_config: dict = Field(default_factory=dict)
+    response_choices: list[str] = Field(default_factory=list)
+    hint: str = ""
+
+# --- DA Scene 3 Specific Schemas ---
+class PythonValidation(BaseModel):
+    required_functions: list[str]
+
+class PythonSandboxTask(BaseModel):
+    is_completed: bool = False
+    problem_statement: str
+    editor_type: Literal["python"] = "python"
+    default_code: str
+    helper_snippets: list[str]
+    validation: PythonValidation
+
+class AnomalyGuide(BaseModel):
+    title: str
+    institutional_divergence: str
+    rsi_momentum: str
+
+class SidebarGuides(BaseModel):
+    anomaly_guide: AnomalyGuide
+
+class DA3InteractiveTasks(BaseModel):
+    python_sandbox: PythonSandboxTask
+
+class DA3ContextData(BaseModel):
+    interactive_tasks: DA3InteractiveTasks
+    sidebar_guides: SidebarGuides
+    active_npcs: list[dict] = Field(default_factory=list)
+    scene_type: str = ""
+
+class DAScene3Content(SceneContent):
+    context_data: DA3ContextData
+    interactive_config: dict = Field(default_factory=dict)
+    response_choices: list[str] = Field(default_factory=list)
+    hint: str = ""
 
 
 class NpcStateUpdate(BaseModel):
