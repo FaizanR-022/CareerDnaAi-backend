@@ -28,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 from contextlib import asynccontextmanager
 
+_memory_saver = None
+
 @asynccontextmanager
 async def get_graph():
     from app.core.config import get_settings
@@ -38,8 +40,11 @@ async def get_graph():
         async with AsyncPostgresSaver.from_conn_string(db_url) as checkpointer:
             yield build_graph(checkpointer)
     else:
-        from langgraph.checkpoint.memory import MemorySaver
-        yield build_graph(MemorySaver())
+        global _memory_saver
+        if _memory_saver is None:
+            from langgraph.checkpoint.memory import MemorySaver
+            _memory_saver = MemorySaver()
+        yield build_graph(_memory_saver)
 
 # ─── INTERRUPT NODE ──────────────────────────────────────────────────────────
 
