@@ -308,7 +308,7 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
         "messages": [
             {
                 "sender": "Sara Khan",
-                "channel": "developer",
+                "channel": "sara_khan",
                 "content": "Hey! We really need the referral feature in this sprint. Can we make it happen?",
                 "time_offset_minutes": 0,
             }
@@ -783,9 +783,10 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
   "messages": [
     {{
       "sender": "{primary_npc_name}",
-      "channel": "developer", 
+      "channel": "{primary_npc_id}", 
       "content": "{primary_npc_name}'s opening message — in character, urgent, references the relevant context",
-      "time_offset_minutes": 0
+      "time_offset_minutes": 0,
+      "isAudio": true
     }}
   ],
   "response_format": "free_text",

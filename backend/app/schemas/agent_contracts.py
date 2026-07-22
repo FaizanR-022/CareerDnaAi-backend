@@ -22,6 +22,7 @@ class SceneMessage(BaseModel):
     channel: str
     content: str
     time_offset_minutes: int = 0
+    isAudio: bool | None = None
 
 
 class DataExplorerInteractive(BaseModel):

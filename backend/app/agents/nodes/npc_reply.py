@@ -121,7 +121,6 @@ Difficulty level: {difficulty}
 - 2-4 sentences maximum
 - Trust {npc_trust}/100: {"warmer and collaborative" if npc_trust > 65 else "cooler and more formal" if npc_trust < 35 else "professional"}
 - Urgency matches difficulty: {"friendly" if difficulty == "easy" else "pressured" if difficulty == "hard" else "professional"}
-- Use vocabulary: {npc_persona.get('vocabulary', '')}
 - NEVER say anything that contradicts the scene narrative or sprint board above"""
 
     llm = get_llm(model="llama-3.3-70b-versatile", temperature=0.7)
