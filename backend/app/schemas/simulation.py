@@ -30,6 +30,7 @@ class SubmitResponseRequest(BaseModel):
 class SendMessageRequest(BaseModel):
     """Request body for POST /simulations/{id}/scenes/{n}/messages"""
     message: str  # the student's message text
+    channel: str | None = None  # The UI channel (NPC name) the student is talking in
 
 
 class NPCReplyResponse(BaseModel):
