@@ -15,13 +15,25 @@ logger = logging.getLogger(__name__)
 
 def _select_active_npc(student_message: str, active_npcs: list, domain: str) -> str:
     """Pick which NPC to respond based on message content."""
-    if len(active_npcs) == 1:
-        return active_npcs[0]
+    
+    # Extract string IDs from list of dicts if necessary
+    npc_ids = []
+    for npc in active_npcs:
+        if isinstance(npc, dict):
+            npc_ids.append(npc.get("id"))
+        else:
+            npc_ids.append(npc)
+            
+    if not npc_ids:
+        return "unknown"
+        
+    if len(npc_ids) == 1:
+        return npc_ids[0]
     
     msg_lower = student_message.lower()
     
     # PM domain routing
-    if domain == "product_manager":
+    if domain in ("product_manager", "pm"):
         rayan_signals = ["rayan", "engineering", "engineer", "capacity",
                          "sprint board", "tickets", "feasibility", "technical",
                          "how long", "estimate", "team", "developers"]
@@ -31,11 +43,18 @@ def _select_active_npc(student_message: str, active_npcs: list, domain: str) -> 
         rayan_score = sum(1 for sig in rayan_signals if sig in msg_lower)
         sara_score = sum(1 for sig in sara_signals if sig in msg_lower)
         
-        if rayan_score > sara_score and "rayan_eng_lead" in active_npcs:
+        if rayan_score > sara_score and "rayan_eng_lead" in npc_ids:
             return "rayan_eng_lead"
+            
+    # DA domain routing
+    elif domain in ("data_analyst", "da"):
+        if "sara" in msg_lower and "sara_developer" in npc_ids:
+            return "sara_developer"
+        if ("client" in msg_lower or "acme" in msg_lower) and "acme_corp_client" in npc_ids:
+            return "acme_corp_client"
     
     # Default: first NPC in list
-    return active_npcs[0] if active_npcs else "unknown"
+    return npc_ids[0]
 
 
 async def npc_reply_node(state: SimulationState) -> dict:
@@ -221,8 +240,8 @@ def _load_npc_persona(domain: str, npc_id: str) -> dict:
             from app.agents.domains.sqa.npcs import DAN_NPC
             return DAN_NPC
         elif domain == "data_analyst":
-            from app.agents.domains.da.npcs import DA_VP_NPC
-            return DA_VP_NPC
+            from app.agents.domains.da.npcs import DA_NPCS
+            return DA_NPCS.get(npc_id, list(DA_NPCS.values())[0])
         elif domain == "frontend_engineer":
             from app.agents.domains.fe.npcs import FE_CLIENT_NPC
             return FE_CLIENT_NPC
