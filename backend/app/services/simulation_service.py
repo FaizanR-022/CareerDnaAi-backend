@@ -249,7 +249,16 @@ async def send_message(
             "be_team_lead": "Marcus",
         }
         return names.get(npc_id, npc_id)
-    
+
+    def _extract_npc_id(npc):
+        return npc.get("id") if isinstance(npc, dict) else npc
+        
+    def _extract_npc_name(npc, domain):
+        if isinstance(npc, dict) and npc.get("name"):
+            return npc.get("name")
+        npc_id = _extract_npc_id(npc)
+        return _get_npc_display_name(npc_id, domain)
+
     return {
         "npc_id": active_npc_id,
         "npc_name": _get_npc_name(npc_result["conversation_history"]),
@@ -257,11 +266,11 @@ async def send_message(
         "conversation_history": npc_result["conversation_history"],
         "all_active_npcs": [
             {
-                "npc_id": npc_id,
-                "npc_name": _get_npc_display_name(npc_id, domain),
+                "npc_id": _extract_npc_id(npc),
+                "npc_name": _extract_npc_name(npc, domain),
                 "can_receive_messages": True
             }
-            for npc_id in scene_active_npcs
+            for npc in scene_active_npcs
         ],
         "is_multi_npc": len(scene_active_npcs) > 1
     }
