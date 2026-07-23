@@ -13,6 +13,31 @@ from app.agents.state import SimulationState
 logger = logging.getLogger(__name__)
 
 
+def _select_active_npc(student_message: str, active_npcs: list, domain: str) -> str:
+    """Pick which NPC to respond based on message content."""
+    if len(active_npcs) == 1:
+        return active_npcs[0]
+    
+    msg_lower = student_message.lower()
+    
+    # PM domain routing
+    if domain == "product_manager":
+        rayan_signals = ["rayan", "engineering", "engineer", "capacity",
+                         "sprint board", "tickets", "feasibility", "technical",
+                         "how long", "estimate", "team", "developers"]
+        sara_signals = ["sara", "marketing", "okr", "growth", "feature",
+                        "referral", "timeline", "business", "product"]
+        
+        rayan_score = sum(1 for sig in rayan_signals if sig in msg_lower)
+        sara_score = sum(1 for sig in sara_signals if sig in msg_lower)
+        
+        if rayan_score > sara_score and "rayan_eng_lead" in active_npcs:
+            return "rayan_eng_lead"
+    
+    # Default: first NPC in list
+    return active_npcs[0] if active_npcs else "unknown"
+
+
 async def npc_reply_node(state: SimulationState) -> dict:
     domain = state.get("domain", "product_manager")
     scene = state.get("current_scene") or {}
@@ -53,7 +78,7 @@ async def npc_reply_node(state: SimulationState) -> dict:
     
     # Active NPC
     active_npcs = context_data.get("active_npcs", [])
-    active_npc_id = active_npcs[0] if active_npcs else "sara_khan"
+    active_npc_id = _select_active_npc(student_message, active_npcs, domain)
     
     # NPC persona
     npc_persona = _load_npc_persona(domain, active_npc_id)
@@ -100,9 +125,19 @@ What the student is being asked: {prompt_for_response}
 ━━━ YOUR CHARACTER ━━━
 Personality: {npc_persona.get('personality', '')}
 Your goal in this scene: {npc_persona.get('goal', '')}
-Your vocabulary: {npc_persona.get('vocabulary', '')}
+Your vocabulary pool: {npc_persona.get('vocabulary_pool', npc_persona.get('vocabulary', ''))}
 Your trust in the student: {npc_trust}/100
 Difficulty level: {difficulty}
+
+━━━ VOCABULARY VARIETY RULES ━━━
+- You have a range of professional vocabulary available (see pool above).
+- Use DIFFERENT terms across messages. Never repeat the same buzzword you used in your previous message in this conversation.
+- Review CONVERSATION SO FAR above — if you said "OKRs" there, say "growth targets" or "quarterly targets" instead.
+- Express yourself naturally — not every sentence needs a buzzword.
+- Match emotional intensity to trust level:
+  trust > 65: enthusiastic, collaborative ("I love that idea!")
+  trust 35-65: professional but direct ("I need to flag this.")
+  trust < 35: formal, clipped, slightly cold ("Noted. My position stands.")
 
 ━━━ ABSOLUTE CONSTRAINTS — NEVER VIOLATE ━━━
 - You are discussing ONLY the situation described in "SCENE CONTEXT" above
@@ -113,6 +148,14 @@ Difficulty level: {difficulty}
 - You do NOT know about any scoring system
 - Never break character or acknowledge you are an AI
 
+━━━ HANDLING UNPROFESSIONAL INPUT ━━━
+- If the student says something vague, dismissive, or unprofessional, do NOT break character or lecture them
+- React as {npc_persona.get('name', 'Sara')} would in a real Slack message:
+  * Short confused response ("Sorry, I didn't quite follow that?")
+  * Or professionally redirect ("I'd appreciate a more concrete answer on the timeline.")
+  * Do NOT say "I'm taken aback" — that sounds robotic
+  * Do NOT ask them to be "professional" — just react naturally
+  * Trust score drops when this happens (handled by evaluation)
 ━━━ CONVERSATION SO FAR ━━━
 {history_text}
 

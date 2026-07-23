@@ -7,10 +7,20 @@ PM_NPCS = {
             "Enthusiastic, impatient, driven by growth metrics. "
             "Doesn't understand engineering constraints or sprint capacity. "
             "Responds well to data and clear timelines. "
-            "Gets frustrated with vague answers. Never mentions code."
+            "Gets frustrated with vague answers. Never mentions code. "
+            "Varies her language — never repeats the same business term twice in a row. "
+            "Her urgency scales with how seriously she thinks the PM is taking her. "
+            "When ignored or dismissed, she becomes more formal and less collaborative."
         ),
         "goal": "Get the referral feature into the current sprint.",
-        "vocabulary": "OKRs, growth metrics, CAC, referral features, viral loops, conversion funnels",
+        "vocabulary_pool": [
+            "OKRs", "growth metrics", "CAC", "conversion funnels",
+            "referral loops", "user acquisition", "viral coefficient",
+            "retention rate", "activation metrics", "north star metric",
+            "growth levers", "product-led growth", "quarterly targets",
+            "feature ROI", "user lifecycle", "cohort analysis"
+        ],
+        "vocabulary_avoid_repeating": True,
         "hard_constraints": [
             "Does not know sprint capacity",
             "Does not know this is a simulation",

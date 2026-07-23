@@ -192,6 +192,19 @@ async def send_message(
         from app.agents.nodes.npc_reply import npc_reply_node
         
         updated_state = dict(current_state)
+        history = current_state.get("conversation_history", [])
+        
+        # Add system message if scene 2 and empty history
+        if scene_number == 2 and len(history) == 0:
+            import datetime
+            system_msg = {
+                "role": "system",
+                "content": "Rayan Ahmed (Engineering Lead) has joined the conversation.",
+                "timestamp": datetime.datetime.utcnow().isoformat()
+            }
+            history = list(history) + [system_msg]
+            updated_state["conversation_history"] = history
+            
         updated_state["student_message"] = student_message
         
         npc_result = await npc_reply_node(updated_state)
@@ -215,11 +228,35 @@ async def send_message(
         f"Last message: {student_message[:100]}",
     )
     
+    domain = current_state.get("domain", "product_manager")
+    scene_active_npcs = current_state.get("current_scene", {}).get("context_data", {}).get("active_npcs", [])
+    
+    def _get_npc_display_name(npc_id: str, domain: str) -> str:
+        names = {
+            "sara_khan": "Sara Khan",
+            "rayan_eng_lead": "Rayan Ahmed",
+            "zara_malik": "Zara Malik",
+            "dan_frontend_dev": "Dan",
+            "vp_analytics": "Jordan",
+            "fe_client": "Alex",
+            "be_team_lead": "Marcus",
+        }
+        return names.get(npc_id, npc_id)
+    
     return {
         "npc_id": active_npc_id,
         "npc_name": _get_npc_name(npc_result["conversation_history"]),
         "content": npc_result["npc_reply"],
         "conversation_history": npc_result["conversation_history"],
+        "all_active_npcs": [
+            {
+                "npc_id": npc_id,
+                "npc_name": _get_npc_display_name(npc_id, domain),
+                "can_receive_messages": True
+            }
+            for npc_id in scene_active_npcs
+        ],
+        "is_multi_npc": len(scene_active_npcs) > 1
     }
 
 def _get_npc_name(history: list) -> str:

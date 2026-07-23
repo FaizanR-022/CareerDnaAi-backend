@@ -95,6 +95,7 @@ class SceneContent(BaseModel):
     prompt_for_response: str = Field(default="Please complete the active task to proceed to the next scene.")
     hint: str | None = None
     is_final_scene: bool = False
+    voice_memo: dict | None = None
     interactive_config: InteractiveConfig | None = None
     extra: dict = Field(default_factory=dict)
 
