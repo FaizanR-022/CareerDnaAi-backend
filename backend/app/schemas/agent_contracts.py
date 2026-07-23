@@ -42,7 +42,7 @@ class InsightsConsoleInteractive(BaseModel):
     editor_type: Literal["insights"] = "insights"
     hypothesis_options: list[str] = Field(default=["hyp_divergence", "hyp_seasonality", "hyp_bot_traffic"])
 
-InteractiveConfig = DataExplorerInteractive | SqlEditorInteractive | PythonEditorInteractive | InsightsConsoleInteractive
+InteractiveConfig = dict | DataExplorerInteractive | SqlEditorInteractive | PythonEditorInteractive | InsightsConsoleInteractive
 
 # --- DA Scene 1 Specific Schemas ---
 class TableRow(BaseModel):
@@ -96,7 +96,7 @@ class SceneContent(BaseModel):
     hint: str | None = None
     is_final_scene: bool = False
     voice_memo: dict | None = None
-    interactive_config: InteractiveConfig | None = None
+    interactive_config: dict | None = None
     extra: dict = Field(default_factory=dict)
 
 

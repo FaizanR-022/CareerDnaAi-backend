@@ -127,7 +127,11 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
             "response_format": "interactive_workspace",
             "prompt_for_response": "Complete the frontend layout and design tasks.",
             "is_final_scene": False,
-            "extra": {"fallback": True},
+            "extra": {
+                "fallback": True,
+                "figma_mockup_url": "https://www.figma.com/design/therapeutic-healthcare-theme",
+                "broken_browser_implementation_url": "https://supermart-therapeutic-layout.vercel.app"
+            },
             "context_data": {
                 "active_npcs": ["fe_client"]
             },
@@ -846,7 +850,11 @@ DO NOT generate any JSON for interactive tasks, interactive_configs, or workspac
                     "active_npcs": active_npcs
                 },
                 "interactive_config": base_config["interactive_config"],
-                "characters": llm_dict["characters"]
+                "characters": llm_dict["characters"],
+                "extra": {
+                    "figma_mockup_url": "https://www.figma.com/design/therapeutic-healthcare-theme",
+                    "broken_browser_implementation_url": "https://supermart-therapeutic-layout.vercel.app"
+                }
             }
             
             # Validate through Pydantic
