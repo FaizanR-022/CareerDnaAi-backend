@@ -13,14 +13,18 @@ from app.agents.state import SimulationState
 logger = logging.getLogger(__name__)
 
 
-def _select_active_npc(student_message: str, active_npcs: list, domain: str) -> str:
-    """Pick which NPC to respond based on message content."""
+def _select_active_npc(student_message: str, active_npcs: list, domain: str, ui_channel: str | None = None) -> str:
+    """Pick which NPC to respond based on message content or UI channel."""
     
     # Extract string IDs from list of dicts if necessary
     npc_ids = []
+    npc_names = {}
     for npc in active_npcs:
         if isinstance(npc, dict):
-            npc_ids.append(npc.get("id"))
+            npc_id = npc.get("id")
+            npc_ids.append(npc_id)
+            if npc.get("name"):
+                npc_names[npc.get("name").lower()] = npc_id
         else:
             npc_ids.append(npc)
             
@@ -29,6 +33,20 @@ def _select_active_npc(student_message: str, active_npcs: list, domain: str) -> 
         
     if len(npc_ids) == 1:
         return npc_ids[0]
+    
+    # If the UI passed the channel name the student is talking in, use it!
+    if ui_channel:
+        # Match by exact ID
+        if ui_channel in npc_ids:
+            return ui_channel
+        # Match by name (case insensitive)
+        ui_channel_lower = ui_channel.lower()
+        if ui_channel_lower in npc_names:
+            return npc_names[ui_channel_lower]
+        # Partial match
+        for name, nid in npc_names.items():
+            if name in ui_channel_lower or ui_channel_lower in name:
+                return nid
     
     msg_lower = student_message.lower()
     
@@ -61,6 +79,8 @@ async def npc_reply_node(state: SimulationState) -> dict:
     domain = state.get("domain", "product_manager")
     scene = state.get("current_scene") or {}
     student_message = state.get("student_message", "")
+    ui_channel = state.get("ui_channel")
+
     history = state.get("conversation_history", [])
     difficulty = state.get("difficulty", "medium")
     npc_trust_map = state.get("npc_trust", {})
@@ -97,7 +117,7 @@ async def npc_reply_node(state: SimulationState) -> dict:
     
     # Active NPC
     active_npcs = context_data.get("active_npcs", [])
-    active_npc_id = _select_active_npc(student_message, active_npcs, domain)
+    active_npc_id = _select_active_npc(student_message, active_npcs, domain, ui_channel)
     
     # NPC persona
     npc_persona = _load_npc_persona(domain, active_npc_id)

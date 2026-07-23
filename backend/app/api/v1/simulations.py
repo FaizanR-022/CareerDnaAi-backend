@@ -41,7 +41,8 @@ async def send_message(
         session_id=session_id,
         scene_number=scene_number,
         student_message=req.message,
-        user=current_user
+        user=current_user,
+        channel=req.channel
     )
 
 

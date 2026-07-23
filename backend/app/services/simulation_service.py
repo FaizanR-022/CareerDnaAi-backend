@@ -156,8 +156,15 @@ async def send_message(
     session_id: str,
     scene_number: int,
     student_message: str,
-    user: dict
+    user: dict,
+    channel: str | None = None
 ) -> dict:
+    current_state = await _get_thread_state(session_id)
+    if not current_state:
+        raise HTTPException(status_code=404, detail="Session not found or empty.")
+    
+    # Optional channel the user sent the message from
+    current_state["ui_channel"] = channel
     """
     Handles a single chat message from student.
     Gets NPC reply. Stores both in conversation_history.
