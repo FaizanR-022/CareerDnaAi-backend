@@ -308,7 +308,7 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
         "messages": [
             {
                 "sender": "Sara Khan",
-                "channel": "developer",
+                "channel": "sara_khan",
                 "content": "Hey! We really need the referral feature in this sprint. Can we make it happen?",
                 "time_offset_minutes": 0,
             }
@@ -739,6 +739,11 @@ SCENARIO GENERATION (invent fresh specifics — do not reuse details from prior 
     primary_npc = npc_map.get(primary_npc_id, {})
     primary_npc_name = primary_npc.get("name", "Sara Khan")
     primary_npc_role = primary_npc.get("role", "Head of Marketing")
+    
+    characters_json_list = ",\n    ".join([
+        f'{{"id": "{npc_id}", "name": "{npc_map.get(npc_id, {}).get("name", "")}", "role": "{npc_map.get(npc_id, {}).get("role", "")}", "initial_trust": 50}}'
+        for npc_id in active_npcs
+    ])
 
     prompt = f"""You are generating scene {scene_number} of a {domain.replace('_', ' ').title()} career simulation.
 
@@ -778,14 +783,15 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
     "scene_type": "{scene_config['type']}"
   }},
   "characters": [
-    {{"id": "{primary_npc_id}", "name": "{primary_npc_name}", "role": "{primary_npc_role}", "initial_trust": 50}}
+    {characters_json_list}
   ],
   "messages": [
     {{
       "sender": "{primary_npc_name}",
-      "channel": "developer", 
+      "channel": "{primary_npc_id}", 
       "content": "{primary_npc_name}'s opening message — in character, urgent, references the relevant context",
-      "time_offset_minutes": 0
+      "time_offset_minutes": 0,
+      "isAudio": true
     }}
   ],
   "response_format": "free_text",
@@ -793,6 +799,11 @@ Generate the scene. Return ONLY valid JSON, no markdown, no backticks, no preamb
   "prompt_for_response": "Concrete problem statement explaining exactly what task the student needs to perform to resolve this scene's challenges",
   "hint": {"null" if difficulty != "easy" else '"Think about what information you need before committing."'},
   "is_final_scene": {"true" if scene_number >= 4 else "false"},
+  "voice_memo": {{
+    "transcript": "{primary_npc_name}'s voice memo text relevant to this scene",
+    "duration": "0:35",
+    "tone": "professional"
+  }},
   "extra": {{}}
 }}"""
 

@@ -24,9 +24,11 @@ def reset_impl():
     get_settings.cache_clear()
 
 
+import uuid
+
 def _scene_ctx():
     return SceneGenerationContext(
-        simulation_session_id="s1", user_id="u1", domain="product_manager",
+        simulation_session_id=str(uuid.uuid4()), user_id="u1", domain="product_manager",
         difficulty="medium", scene_number=1,
         user_profile_snippet=UserProfileSnippet(),
     )
@@ -40,9 +42,10 @@ async def test_generate_scene_dispatches_to_mock_by_default():
 
 @pytest.mark.anyio
 async def test_evaluate_response_dispatches_to_mock_by_default():
-    scene = mock_agent.generate_scene(_scene_ctx())
+    scene_ctx = _scene_ctx()
+    scene = await agent_client.generate_scene(scene_ctx)
     ctx = EvaluationContext(
-        simulation_session_id="s1", user_id="u1", domain="product_manager",
+        simulation_session_id=scene_ctx.simulation_session_id, user_id="u1", domain="product_manager",
         difficulty="medium", scene_number=1, scene_content=scene,
         user_response=SubmittedResponse(raw_text="hello"),
     )
