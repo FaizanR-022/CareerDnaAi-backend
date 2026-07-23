@@ -213,6 +213,10 @@ async def run_evaluation_step(ctx: EvaluationContext) -> EvaluationResult:
         structured_str = json.dumps(ctx.user_response.structured, indent=2)
         student_response += f"\n\n[Interactive Board Data Provided by User]:\n{structured_str}"
     
+    student_response = student_response.strip()
+    if not student_response:
+        student_response = "[No input provided]"
+    
     async with get_graph() as graph:
         # Ensure a checkpoint exists before resuming
         try:

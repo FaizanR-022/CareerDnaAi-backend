@@ -109,34 +109,102 @@ def _fallback_scene(scene_number: int, domain: str, difficulty: str) -> dict:
             "extra": {"fallback": True},
         }
     elif domain == "frontend_engineer":
-        return {
+        fallback = {
             "scene_number": scene_number,
             "domain": domain,
             "difficulty": difficulty,
-            "title": "Figma vs Browser Audit",
-            "narrative": "A product design layout discrepancy has been identified. Review the Figma file specs and align with browser implementation details.",
-            "context_data": {
-                "active_npcs": ["client_product_owner"],
-                "scene_type": "design_discrepancy_review",
-            },
             "characters": [
-                {"id": "client_product_owner", "name": "Client", "role": "Product Owner", "initial_trust": 50}
+                {"id": "fe_client", "name": "SuperMart Client", "role": "Product Owner", "initial_trust": 50}
             ],
             "messages": [
                 {
-                    "sender": "Client",
-                    "channel": "chat",
-                    "content": "Hey, the rendering is off compared to the Figma mockups. Can you fix the button sizes?",
+                    "sender": "SuperMart Client",
+                    "channel": "slack",
+                    "content": "Hey, we need to sort out the SuperMart responsive layout. Let's get this done.",
                     "time_offset_minutes": 0,
                 }
             ],
-            "response_format": "free_text",
-            "response_choices": None,
-            "prompt_for_response": "Identify and prioritize the discrepancies for the client.",
-            "hint": "Focus on dimensions, typography and responsive layout behaviors." if difficulty == "easy" else None,
-            "is_final_scene": scene_number >= 4,
+            "response_format": "interactive_workspace",
+            "prompt_for_response": "Complete the frontend layout and design tasks.",
+            "is_final_scene": False,
             "extra": {"fallback": True},
+            "context_data": {
+                "active_npcs": ["fe_client"]
+            },
+            "interactive_config": {}
         }
+        if scene_number == 1:
+            fallback["title"] = "Design System & Theme Calibration (Fallback)"
+            fallback["narrative"] = "SuperMart requires a high-contrast therapeutic theme. Resolve accessibility contrast issues before building the layout."
+            fallback["interactive_config"]["design_review"] = {
+                "is_completed": False,
+                "problem_statement": "Select the most accessible contrast ratio for the SuperMart checkout button.",
+                "requires_reason": True,
+                "options": [
+                    {"id": "mockup_a", "title": "High Contrast Theme", "is_accessible": True, "metrics": {"contrast_ratio": "4.5:1"}},
+                    {"id": "mockup_b", "title": "Low Contrast Theme", "is_accessible": False, "metrics": {"contrast_ratio": "1.8:1"}}
+                ]
+            }
+        elif scene_number == 2:
+            fallback["title"] = "Theme Verification & Structural Layout (Fallback)"
+            fallback["narrative"] = "With the theme approved, map out the 5-slot homepage wireframe ensuring critical e-commerce blocks are highly visible."
+            fallback["interactive_config"]["design_review"] = {
+                "is_completed": True, 
+                "problem_statement": "Review previous theme choices.",
+                "requires_reason": True,
+                "options": [{"id": "mockup_a", "title": "High Contrast Theme", "is_accessible": True, "metrics": {"contrast_ratio": "4.5:1"}}]
+            }
+            fallback["interactive_config"]["wireframe_builder"] = {
+                "is_completed": False,
+                "problem_statement": "Drag and drop the 5 most critical e-commerce blocks in the correct visual hierarchy.",
+                "available_blocks": [{"id": "blk_hero", "label": "Hero Banner"}],
+                "canvas_slots": 5,
+                "expected_stack_sequence": ["blk_header", "blk_hero", "blk_features", "blk_top_seller", "blk_footer"]
+            }
+        elif scene_number == 3:
+            fallback["title"] = "Wireframe Grid & Mobile CSS Polish (Fallback)"
+            fallback["narrative"] = "The wireframe is approved. Now, fix the CSS grid for the mobile viewport. The product cards are overflowing off the 375px screen."
+            fallback["interactive_config"]["wireframe_builder"] = {
+                "is_completed": True, 
+                "problem_statement": "Review established wireframe.",
+                "available_blocks": [{"id": "blk_hero", "label": "Hero Banner"}],
+                "canvas_slots": 5,
+                "expected_stack_sequence": ["blk_header", "blk_hero", "blk_features", "blk_top_seller", "blk_footer"]
+            }
+            fallback["interactive_config"]["css_sandbox"] = {
+                "is_completed": False,
+                "target_viewport": "mobile",
+                "viewport_width": 375,
+                "problem_statement": "Ensure a responsive, wrapping single-column layout for mobile.",
+                "raw_css": ".supermart-container {\n  display: flex;\n  width: 100%;\n  {{VAR_1}}\n}",
+                "editable_variables": {
+                    "VAR_1": {
+                        "current": "flex-wrap: nowrap;",
+                        "options": ["flex-wrap: nowrap;", "flex-wrap: wrap;", "flex-direction: column;"],
+                        "correct": "flex-direction: column;"
+                    }
+                }
+            }
+        elif scene_number >= 4:
+            fallback["title"] = "Accessibility Validation & Final Mobile Build (Fallback)"
+            fallback["narrative"] = "Final pass. Ensure the mobile layout CSS works with the high-contrast accessibility theme established in Scene 1."
+            fallback["interactive_config"]["design_review"] = {
+                "is_completed": True, 
+                "problem_statement": "Final contrast check.",
+                "requires_reason": True,
+                "options": [{"id": "mockup_a", "title": "High Contrast Theme", "is_accessible": True, "metrics": {"contrast_ratio": "4.5:1"}}]
+            }
+            fallback["interactive_config"]["css_sandbox"] = {
+                "is_completed": False,
+                "target_viewport": "mobile",
+                "viewport_width": 375,
+                "problem_statement": "Finalize mobile styling.",
+                "raw_css": ".supermart-container {\n  display: flex;\n  width: 100%;\n  flex-direction: column;\n}",
+                "editable_variables": {}
+            }
+            fallback["is_final_scene"] = True
+            
+        return fallback
     elif domain == "backend_engineer":
         return {
             "scene_number": scene_number,
@@ -622,6 +690,184 @@ Do NOT place root-level fields (narrative, messages) inside context_data.
                 "is_final_scene": fallback["is_final_scene"],
             }
 
+    # ── FE domain: interactive with structured output ──────────────────────────
+    if domain == "frontend_engineer":
+        from app.agents.domains.fe.npcs import FE_CLIENT_NPC, FE_SCENES
+        from app.schemas.agent_contracts import (
+            FEScene1Content, FEScene2Content, FEScene3Content, FEScene4Content, SceneContent, LLMSceneOutput
+        )
+        
+        # Hardcoded static configuration matrix
+        SUPERMART_CONFIGS = {
+            1: {
+                "interactive_config": {
+                    "active_tabs": ["design_review"],
+                    "design_review": {
+                        "is_completed": False,
+                        "problem_statement": "Define a clean therapeutic healthcare interface theme. WCAG AA requirements mandate a minimum contrast ratio of 4.5:1 for body copy. Select a modern typography pair and valid primary/background colors below.",
+                        "requires_reason": True,
+                        "options": [
+                            {"id": "mockup_a", "title": "High Contrast Theme", "is_accessible": True, "metrics": {"contrast_ratio": "4.5:1"}},
+                            {"id": "mockup_b", "title": "Low Contrast Theme", "is_accessible": False, "metrics": {"contrast_ratio": "1.8:1"}}
+                        ]
+                    }
+                },
+                "prompt_for_response": "Complete the frontend layout and design tasks."
+            },
+            2: {
+                "interactive_config": {
+                    "active_tabs": ["design_review", "wireframe_builder"],
+                    "design_review": {
+                        "is_completed": True, 
+                        "problem_statement": "Review previous theme choices.",
+                        "requires_reason": True,
+                        "options": [{"id": "mockup_a", "title": "High Contrast Theme", "is_accessible": True, "metrics": {"contrast_ratio": "4.5:1"}}]
+                    },
+                    "wireframe_builder": {
+                        "is_completed": False,
+                        "problem_statement": "Drag and drop the 5 most critical e-commerce blocks in the correct visual hierarchy.",
+                        "available_blocks": [{"id": "blk_hero", "label": "Hero Banner"}],
+                        "canvas_slots": 5,
+                        "expected_stack_sequence": ["blk_header", "blk_hero", "blk_features", "blk_top_seller", "blk_footer"]
+                    }
+                },
+                "prompt_for_response": "Complete the frontend layout and design tasks."
+            },
+            3: {
+                "interactive_config": {
+                    "active_tabs": ["wireframe_builder", "css_sandbox"],
+                    "wireframe_builder": {
+                        "is_completed": True, 
+                        "problem_statement": "Review established wireframe.",
+                        "available_blocks": [{"id": "blk_hero", "label": "Hero Banner"}],
+                        "canvas_slots": 5,
+                        "expected_stack_sequence": ["blk_header", "blk_hero", "blk_features", "blk_top_seller", "blk_footer"]
+                    },
+                    "css_sandbox": {
+                        "is_completed": False,
+                        "target_viewport": "mobile",
+                        "viewport_width": 375,
+                        "problem_statement": "Ensure a responsive, wrapping single-column layout for mobile.",
+                        "raw_css": ".supermart-container {\n  display: flex;\n  width: 100%;\n  {{VAR_1}}\n}",
+                        "editable_variables": {
+                            "VAR_1": {
+                                "current": "flex-wrap: nowrap;",
+                                "options": ["flex-wrap: nowrap;", "flex-wrap: wrap;", "flex-direction: column;"],
+                                "correct": "flex-direction: column;"
+                            }
+                        }
+                    }
+                },
+                "prompt_for_response": "Complete the frontend layout and design tasks."
+            },
+            4: {
+                "interactive_config": {
+                    "active_tabs": ["design_review", "css_sandbox"],
+                    "design_review": {
+                        "is_completed": True, 
+                        "problem_statement": "Final contrast check.",
+                        "requires_reason": True,
+                        "options": [{"id": "mockup_a", "title": "High Contrast Theme", "is_accessible": True, "metrics": {"contrast_ratio": "4.5:1"}}]
+                    },
+                    "css_sandbox": {
+                        "is_completed": False,
+                        "target_viewport": "mobile",
+                        "viewport_width": 375,
+                        "problem_statement": "Finalize mobile styling.",
+                        "raw_css": ".supermart-container {\n  display: flex;\n  width: 100%;\n  flex-direction: column;\n}",
+                        "editable_variables": {}
+                    }
+                },
+                "prompt_for_response": "Complete the frontend layout and design tasks."
+            }
+        }
+        
+        scene_config = FE_SCENES.get(scene_number, FE_SCENES[1])
+        active_npcs = scene_config.get("active_npcs", ["fe_client"])
+        
+        # Build NPC context with trust levels
+        npc_context_parts = []
+        for npc_id in active_npcs:
+            npc = FE_CLIENT_NPC if npc_id == "fe_client" else {}
+            trust = _get_npc_trust(state, npc_id)
+            npc_context_parts.append(
+                f"- {npc.get('name', 'Client')} ({npc.get('role', 'Client')}): "
+                f"trust {trust}/100, goal: {npc.get('goal', 'Launch')}, "
+                f"vocabulary: {npc.get('vocabulary', 'layout')}"
+            )
+        npc_context = "\n".join(npc_context_parts)
+
+        prompt = f"""You are generating scene {scene_number} of a Frontend Engineer career simulation.
+        
+COMPONENT 1 — DOMAIN CONTEXT:
+Domain: frontend_engineer | Scene type: {scene_config.get('type', 'frontend')}
+{scene_config.get('context', 'SuperMart e-commerce layout build.')}
+
+COMPONENT 2 — SESSION STATE:
+Difficulty: {difficulty}
+Scene number: {scene_number}
+Active NPCs and trust levels:
+{npc_context}
+
+COMPONENT 3 — TECHNICAL CONSTRAINTS:
+You must ONLY generate the 'title', 'narrative', and NPC 'messages'. 
+DO NOT generate any JSON for interactive tasks, interactive_configs, or workspaces.
+"""
+        
+        schema_str = LLMSceneOutput.model_json_schema()
+        prompt += f"\n\nCRITICAL: You MUST return a single valid JSON object exactly matching this schema:\n```json\n{json.dumps(schema_str, indent=2)}\n```\n"
+
+        llm = get_llm(model="llama-3.1-8b-instant", temperature=0.6)
+        structured_llm = llm.with_structured_output(LLMSceneOutput, method="json_mode")
+        
+        try:
+            logger.info(f"[llm-prompt] {prompt}")
+            response = await acall_llm_with_retry(
+                structured_llm,
+                [SystemMessage(content=prompt)]
+            )
+            llm_dict = response.model_dump(by_alias=True)
+            
+            # Assemble Hybrid Payload
+            base_config = SUPERMART_CONFIGS.get(scene_number if scene_number <= 4 else 4, SUPERMART_CONFIGS[4])
+            schema_cls = {1: FEScene1Content, 2: FEScene2Content, 3: FEScene3Content}.get(scene_number, FEScene4Content)
+            
+            merged_dict = {
+                "scene_number": scene_number,
+                "domain": domain,
+                "difficulty": difficulty,
+                "response_format": "interactive_workspace",
+                "is_final_scene": scene_number >= 4,
+                "title": llm_dict["title"],
+                "narrative": llm_dict["narrative"],
+                "messages": llm_dict["messages"],
+                "prompt_for_response": base_config["prompt_for_response"],
+                "context_data": {
+                    "active_npcs": active_npcs
+                },
+                "interactive_config": base_config["interactive_config"],
+                "characters": llm_dict["characters"]
+            }
+            
+            # Validate through Pydantic
+            final_scene = schema_cls(**merged_dict).model_dump(by_alias=True)
+            
+            logger.info(f"[LLM_OK] scenario_node → FE scene {scene_number} generated structured")
+            return {
+                "current_scene": final_scene,
+                "is_final_scene": final_scene.get("is_final_scene", False),
+            }
+        except Exception as e:
+            logger.warning(
+                f"[LLM_FALLBACK] scenario_node FE scene {scene_number} → using static fallback "
+                f"(reason: {e})"
+            )
+            fallback = _fallback_scene(scene_number, domain, difficulty)
+            return {
+                "current_scene": fallback,
+                "is_final_scene": fallback["is_final_scene"],
+            }
+
     # ── PM domain ─────────────────────────────────────────────────────────────
     if domain == "product_manager":
         from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
@@ -630,13 +876,6 @@ Do NOT place root-level fields (narrative, messages) inside context_data.
         npc_map = PM_NPCS
         sprint = (scene_config.get("sprint_board", {}) or PM_SCENES[1].get("sprint_board", {})) if scene_number in (1, 3, 4) else None
         prd_data = (scene_config.get("prd_data", {}) or PM_SCENES[1].get("prd_data", {})) if scene_number in (2, 3, 4) else None
-    elif domain == "frontend_engineer":
-        from app.agents.domains.fe.npcs import FE_CLIENT_NPC, FE_SCENES
-        scene_config = FE_SCENES.get(scene_number, FE_SCENES[1])
-        active_npcs = scene_config.get("active_npcs", ["fe_client"])
-        npc_map = {"fe_client": FE_CLIENT_NPC}
-        sprint = {}
-        prd_data = {}
     elif domain == "backend_engineer":
         from app.agents.domains.be.npcs import BE_TEAM_LEAD_NPC, BE_SCENES
         scene_config = BE_SCENES.get(scene_number, BE_SCENES[1])
@@ -645,7 +884,7 @@ Do NOT place root-level fields (narrative, messages) inside context_data.
         sprint = {}
         prd_data = {}
     else:
-        # FE, BE — fallback to PM for now
+        # BE — fallback to PM for now
         from app.agents.domains.pm.npcs import PM_NPCS, PM_SCENES
         scene_config = PM_SCENES.get(1)
         active_npcs = ["sara_khan"]
@@ -706,12 +945,7 @@ PROBLEM STATEMENT GENERATION (in the "prompt_for_response" field):
   - For Scene 3: Instruct the student to align the engineering and marketing stakeholders on an MVP scope and update the PRD's Out of Scope and Success Metrics.
   - For Scene 4: Instruct the student to defend their roadmap decisions to VP Zara Malik using data and ownership of the trade-offs.
 """
-    elif domain == "frontend_engineer":
-        domain_instruction = """
-SCENARIO GENERATION (invent fresh specifics — do not reuse details from prior sessions):
-- Invent realistic UI/UX discrepancies, CSS layout bugs (e.g., flexbox overlap, padding issues), or cross-browser quirks.
-- Vary the affected components (e.g. Navigation bar, Checkout modal, User Profile) each generation.
-"""
+
     elif domain == "backend_engineer":
         domain_instruction = """
 SCENARIO GENERATION (invent fresh specifics — do not reuse details from prior sessions):

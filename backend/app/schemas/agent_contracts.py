@@ -7,7 +7,7 @@ Domain = Literal[
 ]
 Difficulty = Literal["easy", "medium", "hard"]
 Sentiment = Literal["positive", "neutral", "negative"]
-ResponseFormat = Literal["free_text", "structured", "code", "interactive"]
+ResponseFormat = Literal["free_text", "structured", "code", "interactive", "interactive_workspace"]
 
 
 class Character(BaseModel):
@@ -281,3 +281,95 @@ class FitReportResult(BaseModel):
     strengths: list[str] = Field(default_factory=list)
     growth_areas: list[str] = Field(default_factory=list)
     extra: dict = Field(default_factory=dict)
+
+# --- Frontend Engineer Schemas ---
+
+class MockupOptionMetrics(BaseModel):
+    contrast_ratio: str
+
+class MockupOption(BaseModel):
+    id: str
+    title: str
+    is_accessible: bool
+    metrics: MockupOptionMetrics
+
+class DesignReviewTask(BaseModel):
+    is_completed: bool = False
+    problem_statement: str
+    requires_reason: bool = True
+    options: list[MockupOption]
+
+class AvailableBlock(BaseModel):
+    id: str
+    label: str
+
+class WireframeBuilderTask(BaseModel):
+    is_completed: bool = False
+    problem_statement: str
+    available_blocks: list[AvailableBlock]
+    canvas_slots: int
+    expected_stack_sequence: list[str]
+
+class CssVariableOption(BaseModel):
+    current: str
+    options: list[str]
+    correct: str
+
+class CssSandboxTask(BaseModel):
+    is_completed: bool = False
+    target_viewport: Literal["mobile"] = "mobile"
+    viewport_width: Literal[375] = 375
+    problem_statement: str
+    raw_css: str
+    editable_variables: dict[str, CssVariableOption]
+
+# FE Common Context
+class FEContextData(BaseModel):
+    active_npcs: list[dict | str] = Field(default_factory=list)
+    scene_type: str = ""
+
+# FE LLM Generation
+class LLMSceneOutput(BaseModel):
+    title: str
+    narrative: str
+    messages: list[SceneMessage]
+    characters: list[Character]
+
+# Scene 1: Design Review
+class FEScene1InteractiveConfig(BaseModel):
+    active_tabs: list[str] = Field(default_factory=list)
+    design_review: DesignReviewTask
+
+class FEScene1Content(SceneContent):
+    context_data: FEContextData = Field(default_factory=FEContextData)
+    interactive_config: FEScene1InteractiveConfig
+
+# Scene 2: Design Review + Wireframe
+class FEScene2InteractiveConfig(BaseModel):
+    active_tabs: list[str] = Field(default_factory=list)
+    design_review: DesignReviewTask
+    wireframe_builder: WireframeBuilderTask
+
+class FEScene2Content(SceneContent):
+    context_data: FEContextData = Field(default_factory=FEContextData)
+    interactive_config: FEScene2InteractiveConfig
+
+# Scene 3: Wireframe + CSS (Mobile)
+class FEScene3InteractiveConfig(BaseModel):
+    active_tabs: list[str] = Field(default_factory=list)
+    wireframe_builder: WireframeBuilderTask
+    css_sandbox: CssSandboxTask
+
+class FEScene3Content(SceneContent):
+    context_data: FEContextData = Field(default_factory=FEContextData)
+    interactive_config: FEScene3InteractiveConfig
+
+# Scene 4: Design Review + CSS (Mobile)
+class FEScene4InteractiveConfig(BaseModel):
+    active_tabs: list[str] = Field(default_factory=list)
+    design_review: DesignReviewTask
+    css_sandbox: CssSandboxTask
+
+class FEScene4Content(SceneContent):
+    context_data: FEContextData = Field(default_factory=FEContextData)
+    interactive_config: FEScene4InteractiveConfig
