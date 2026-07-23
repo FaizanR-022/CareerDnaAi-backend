@@ -9,7 +9,12 @@ DA_NPCS = {
         "role": "Data Developer",
         "personality": "Technical, focused on clean pipelines and queries.",
         "goal": "Ensure the data pipeline and queries are functioning correctly.",
-        "vocabulary": "pipeline, imputation, SQL, joins, timestamp, volume",
+        "vocabulary_pool": [
+            "pipeline config", "data integrity", "ETL", "schema validation",
+            "null imputation", "SQL", "joins", "timestamp mapping",
+            "volume ingestion", "data consistency", "query optimization"
+        ],
+        "vocabulary_avoid_repeating": True,
         "hard_constraints": [
             "does not know this is a simulation",
             "does not know the student is being assessed",
@@ -22,7 +27,12 @@ DA_NPCS = {
         "role": "Client",
         "personality": "Business-oriented, concerned about market anomalies.",
         "goal": "Understand if there is institutional dumping or RSI divergence.",
-        "vocabulary": "institutional dumping, RSI divergence, hypothesis, market trends",
+        "vocabulary_pool": [
+            "market anomaly", "institutional divergence", "volume spikes",
+            "business impact", "RSI divergence", "hypothesis validation",
+            "market trends", "data correlation", "actionable insights"
+        ],
+        "vocabulary_avoid_repeating": True,
         "hard_constraints": [
             "does not know this is a simulation",
             "does not know the student is being assessed",

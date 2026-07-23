@@ -611,12 +611,17 @@ For this scene, configure the interactive_config based on the scene type exactly
 - Scene 3 (python_editor): interactive_config.editor_type = "python"
 - Scene 4 (insights_console): interactive_config.editor_type = "insights"
 
-Ensure response_format is "interactive". Make dialogue natural.
+    Ensure response_format is "interactive". Make dialogue natural.
+
+COMPONENT 4 — CHARACTERS & VOICE MEMO:
+You MUST output EVERY active NPC in the 'characters' array (i.e. {json.dumps(active_npcs)}). Ensure each character has 'id', 'name', 'role', and 'initial_trust'.
+The FIRST message in the 'messages' array MUST be from {DA_NPCS.get(active_npcs[0] if active_npcs else 'sara_developer', {}).get('name', 'Sara')} and it MUST include "isAudio": true.
+Additionally, you MUST populate the root-level 'voice_memo' object with a transcript of their opening message, duration (e.g. "0:45"), and tone.
 """
 
         if scene_number == 1:
             prompt += """
-COMPONENT 4 — STRICT JSON HIERARCHY:
+COMPONENT 5 — STRICT JSON HIERARCHY:
 You must respect the strict boundary between root-level fields and nested context fields.
 
 ROOT-LEVEL FIELDS (You MUST generate these at the top level):
@@ -652,7 +657,7 @@ Do not omit any of these keys.
             structured_llm = llm.with_structured_output(DAScene1Content, method="json_mode")
         elif scene_number == 3:
             prompt += """
-COMPONENT 4 — SCENE 3 PYTHON SANDBOX GENERATION:
+COMPONENT 5 — SCENE 3 PYTHON SANDBOX GENERATION:
 You must fully populate the context_data object for a Python coding task.
 CRITICAL: You MUST include ALL of the following keys inside context_data:
 1. 'interactive_tasks.python_sandbox': Must include 'editor_type' set to "python", a 'default_code' comment, 3 'helper_snippets' (e.g., "df.plot(...)"), and 'validation' keywords.
