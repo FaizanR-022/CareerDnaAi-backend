@@ -63,3 +63,27 @@ def find_report_for_session(user_id: str, session_id: str) -> Optional[dict]:
         .limit(1)
     )
     return result.data[0] if result.data else None
+
+
+def get_latest_report_for_domain(user_id: str, domain: str) -> Optional[dict]:
+    supabase = get_supabase()
+    if not supabase:
+        matches = [
+            r
+            for r in _memory_reports.values()
+            if r.get("user_id") == user_id
+            and r.get("domain") == domain
+        ]
+        if not matches:
+            return None
+        return max(matches, key=lambda r: r["generated_at"])
+
+    result = execute_or_503(
+        supabase.table("career_dna_reports")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("domain", domain)
+        .order("generated_at", desc=True)
+        .limit(1)
+    )
+    return result.data[0] if result.data else None

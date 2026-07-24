@@ -424,3 +424,22 @@ def get_state(session_id: str, current_user: dict) -> dict:
 
 def list_mine(current_user: dict) -> list[dict]:
     return simulation_sessions.list_sessions_for_user(current_user["user_id"])
+
+def exit_simulation(session_id: str, current_user: dict) -> dict:
+    session = _get_owned_session(session_id, current_user)
+    if session["status"] == "completed":
+        raise HTTPException(status_code=409, detail="Simulation already completed")
+    
+    simulation_sessions.update_status(
+        session_id, "terminated", completed_at=datetime.now(timezone.utc).isoformat()
+    )
+    return {"status": "success", "message": "Simulation terminated successfully."}
+
+
+def get_latest_report(current_user: dict, domain: str) -> dict:
+    user_id = current_user["user_id"]
+    from app.repositories import career_dna_reports
+    report = career_dna_reports.get_latest_report_for_domain(user_id, domain)
+    if not report:
+        raise HTTPException(status_code=404, detail="No simulation found")
+    return report

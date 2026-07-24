@@ -58,6 +58,14 @@ async def submit_response(
     )
 
 
+@router.get("/reports/latest")
+def get_latest_report(domain: str, current_user: dict = Depends(get_current_user)):
+    """
+    Fetches the most recent completed simulation report belonging to this user for the specified domain.
+    """
+    return simulation_service.get_latest_report(current_user, domain)
+
+
 @router.post("/{session_id}/scenes", response_model=SceneResponse)
 async def next_scene(session_id: str, current_user: dict = Depends(get_current_user)):
     return await simulation_service.request_next_scene(session_id, current_user)
@@ -76,3 +84,13 @@ def get_simulation(session_id: str, current_user: dict = Depends(get_current_use
 @router.get("", response_model=list[SimulationSessionSummary])
 def list_simulations(current_user: dict = Depends(get_current_user)):
     return simulation_service.list_mine(current_user)
+
+
+@router.post("/{session_id}/exit")
+def exit_simulation(session_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Terminates the simulation session early and bypasses the report generation phase.
+    """
+    return simulation_service.exit_simulation(session_id, current_user)
+
+
